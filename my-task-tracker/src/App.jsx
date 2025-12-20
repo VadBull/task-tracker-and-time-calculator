@@ -624,7 +624,6 @@ export default function App() {
                     <TableCell>Название</TableCell>
                     <TableCell width={140}>План (мин)</TableCell>
                     <TableCell width={160}>Факт (мин)</TableCell>
-                    <TableCell width={160}>Используется</TableCell>
                     <TableCell width={120} align="right">
                       Действия
                     </TableCell>
@@ -633,12 +632,7 @@ export default function App() {
 
                 <TableBody>
                   {state.tasks.map((t) => {
-                    const usedMin = t.done
-                      ? (t.actualMin === null || t.actualMin === undefined ? 0 : t.actualMin)
-                      : t.plannedMin;
-
-                    const usedLabel = t.done ? `факт: ${usedMin}` : `план: ${usedMin}`;
-
+                    
                     const factMissing = t.done && (t.actualMin === null || t.actualMin === undefined);
 
                     return (
@@ -675,14 +669,6 @@ export default function App() {
                               факта нет
                             </Typography>
                           ) : null}
-                        </TableCell>
-
-                        <TableCell>
-                          <Chip
-                            size="small"
-                            label={usedLabel}
-                            color={t.done ? "success" : "default"}
-                          />
                         </TableCell>
 
                         <TableCell align="right">
