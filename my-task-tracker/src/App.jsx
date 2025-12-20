@@ -41,6 +41,11 @@ import StopIcon from "@mui/icons-material/Stop";
 
 const STORAGE_KEY = "sleep_tasks_v1";
 
+function hardReset() {
+  localStorage.removeItem(STORAGE_KEY);
+  dispatch({ type: "resetAll" });
+}
+
 function safeRandomId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
   return `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -429,10 +434,16 @@ export default function App() {
     []
   );
 
-  const [state, dispatch] = useReducer(reducer, {
-    bedtime: "22:30",
-    tasks: [],
-  });
+  const DEFAULT_STATE = {
+  bedtime: "22:30",
+  tasks: [],
+};
+
+const [state, dispatch] = useReducer(
+  reducer,
+  DEFAULT_STATE,
+  (initial) => loadState() ?? initial
+);
 
   const [nowMs, setNowMs] = useState(Date.now());
 
@@ -440,11 +451,11 @@ export default function App() {
   const [dialogMode, setDialogMode] = useState("create"); // create | edit
   const [editingTask, setEditingTask] = useState(null);
 
-  // init from localStorage
-  useEffect(() => {
-    const saved = loadState();
-    if (saved) dispatch({ type: "init", payload: saved });
-  }, []);
+  // // init from localStorage
+  // useEffect(() => {
+  //   const saved = loadState();
+  //   if (saved) dispatch({ type: "init", payload: saved });
+  // }, []);
 
   // persist
   useEffect(() => {
@@ -575,9 +586,10 @@ export default function App() {
           <Box sx={{ flex: 1 }} />
 
           <Tooltip title="Сбросить всё (сон + задачи)">
-            <IconButton onClick={() => dispatch({ type: "resetAll" })}>
-              <RestartAltIcon />
+            <IconButton onClick={hardReset}>
+            <RestartAltIcon />
             </IconButton>
+
           </Tooltip>
 
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
@@ -792,47 +804,47 @@ export default function App() {
                           ) : null}
                         </TableCell>
 
-<TableCell align="left">
-  <Stack direction="row" alignItems="center" spacing={1} sx={{ whiteSpace: "nowrap" }}>
-    {t.timerRunning ? (
-      <Tooltip title="Остановить таймер">
-        <IconButton
-          size="small"
-          color="warning"
-          onClick={() => stopTimer(t.id)}
-          sx={{ flex: "0 0 auto" }}
-        >
-          <StopIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-    ) : (
-      <Tooltip title={t.done ? "Задача уже выполнена" : "Делаю сейчас (запустить таймер)"}>
-        <span>
-          <IconButton
-            size="small"
-            color="primary"
-            disabled={t.done}
-            onClick={() => startTimer(t.id)}
-            sx={{ flex: "0 0 auto" }}
-          >
-            <PlayArrowIcon fontSize="small" />
-          </IconButton>
-        </span>
-      </Tooltip>
-    )}
+                        <TableCell align="left">
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{ whiteSpace: "nowrap" }}>
+                            {t.timerRunning ? (
+                              <Tooltip title="Остановить таймер">
+                                <IconButton
+                                  size="small"
+                                  color="warning"
+                                  onClick={() => stopTimer(t.id)}
+                                  sx={{ flex: "0 0 auto" }}
+                                >
+                                  <StopIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip title={t.done ? "Задача уже выполнена" : "Делаю сейчас (запустить таймер)"}>
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    color="primary"
+                                    disabled={t.done}
+                                    onClick={() => startTimer(t.id)}
+                                    sx={{ flex: "0 0 auto" }}
+                                  >
+                                    <PlayArrowIcon fontSize="small" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            )}
 
-    <Typography
-      component="span"
-      sx={{ fontFamily: "monospace", fontWeight: 900, flex: "0 0 auto" }}
-    >
-      {liveText}
-    </Typography>
+                            <Typography
+                              component="span"
+                              sx={{ fontFamily: "monospace", fontWeight: 900, flex: "0 0 auto" }}
+                            >
+                              {liveText}
+                            </Typography>
 
-    <Typography component="span" sx={{ opacity: 0.7, fontSize: 12, flex: "0 0 auto" }}>
-      {msToMinutesCeil(liveMs)} мин
-    </Typography>
-  </Stack>
-</TableCell>
+                            <Typography component="span" sx={{ opacity: 0.7, fontSize: 12, flex: "0 0 auto" }}>
+                              {msToMinutesCeil(liveMs)} мин
+                            </Typography>
+                          </Stack>
+                        </TableCell>
 
 
                         <TableCell align="right">
