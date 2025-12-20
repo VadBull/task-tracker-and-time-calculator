@@ -36,6 +36,8 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import BedtimeIcon from "@mui/icons-material/Bedtime";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import StopIcon from "@mui/icons-material/Stop";
 
 const STORAGE_KEY = "sleep_tasks_v1";
 
@@ -92,6 +94,42 @@ function formatDurationMs(ms) {
   return `${sign}${pad2(h)}:${pad2(m)}:${pad2(s)}`;
 }
 
+function taskTimerMs(task, nowMs) {
+  const acc = typeof task.timerAccumulatedMs === "number" ? task.timerAccumulatedMs : 0;
+
+  if (task.timerRunning && typeof task.timerStartedAtMs === "number") {
+    return acc + Math.max(0, nowMs - task.timerStartedAtMs);
+  }
+
+  return acc;
+}
+
+function msToMinutesCeil(ms) {
+  // 0..∞, округляем вверх, чтобы 1 секунда не превращалась в 0 минут
+  if (ms <= 0) return 0;
+  return Math.ceil(ms / 60000);
+}
+
+function stopTimerFields(task, nowMs) {
+  if (!task.timerRunning || typeof task.timerStartedAtMs !== "number") {
+    return task;
+  }
+
+  const elapsed = Math.max(0, nowMs - task.timerStartedAtMs);
+  const acc = (typeof task.timerAccumulatedMs === "number" ? task.timerAccumulatedMs : 0) + elapsed;
+
+  return {
+    ...task,
+    timerRunning: false,
+    timerStartedAtMs: null,
+    timerAccumulatedMs: acc,
+
+    // фактическое время теперь из таймера (можно потом руками поправить через Edit)
+    actualMin: msToMinutesCeil(acc),
+  };
+}
+
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -105,6 +143,7 @@ function loadState() {
     const normalizedTasks = tasks
       .filter((t) => t && typeof t === "object")
       .map((t) => ({
+
         id: typeof t.id === "string" ? t.id : safeRandomId(),
         title: typeof t.title === "string" ? t.title : "",
         plannedMin: clampInt(t.plannedMin, { min: 0, max: 10_000 }),
@@ -115,6 +154,10 @@ function loadState() {
         done: Boolean(t.done),
         createdAt: typeof t.createdAt === "string" ? t.createdAt : new Date().toISOString(),
         updatedAt: typeof t.updatedAt === "string" ? t.updatedAt : new Date().toISOString(),
+
+        timerRunning: Boolean(t.timerRunning),
+        timerStartedAtMs: typeof t.timerStartedAtMs === "number" ? t.timerStartedAtMs : null,
+        timerAccumulatedMs: typeof t.timerAccumulatedMs === "number" ? t.timerAccumulatedMs : 0,
       }))
       .filter((t) => t.title.trim().length > 0);
 
@@ -152,32 +195,88 @@ function reducer(state, action) {
     }
 
     case "toggleDone": {
-      const next = state.tasks.map((t) => {
-        if (t.id !== action.id) return t;
+  const nowMs = action.nowMs;
 
-        const nextDone = action.done;
-        // если отмечаем "готово" и факта нет — подставим план как дефолт
-        const nextActual = nextDone
-          ? (t.actualMin === null || t.actualMin === undefined ? t.plannedMin : t.actualMin)
-          : t.actualMin;
+  const next = state.tasks.map((t) => {
+    if (t.id !== action.id) return t;
 
-        return {
-          ...t,
-          done: nextDone,
-          actualMin: nextActual,
-          updatedAt: new Date().toISOString(),
-        };
-      });
-      return { ...state, tasks: next };
+    let nt = t;
+
+    // если отмечаем "готово" — остановим таймер и зафиксируем факт
+    if (action.done) {
+      nt = stopTimerFields(nt, nowMs);
     }
+
+    const nextDone = action.done;
+
+    // если задача стала done и факт пустой — возьмём:
+    // 1) actualMin (если уже появился из таймера)
+    // 2) иначе plannedMin
+    const nextActual = nextDone
+      ? (nt.actualMin === null || nt.actualMin === undefined ? nt.plannedMin : nt.actualMin)
+      : nt.actualMin;
+
+    return {
+      ...nt,
+      done: nextDone,
+      actualMin: nextActual,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  return { ...state, tasks: next };
+}
+
 
     case "resetAll": {
       return { bedtime: "22:30", tasks: [] };
     }
 
+    case "startTimer": {
+  const nowMs = action.nowMs;
+
+  const next = state.tasks.map((t) => {
+    // 1) если где-то уже идёт таймер — остановим (накопим) его
+    let nt = t;
+    if (t.timerRunning) {
+      nt = stopTimerFields(nt, nowMs);
+    }
+
+    // 2) стартуем нужную задачу, если она не done
+    if (nt.id === action.id && !nt.done) {
+      nt = {
+        ...nt,
+        timerRunning: true,
+        timerStartedAtMs: nowMs,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    return nt;
+  });
+
+  return { ...state, tasks: next };
+}
+
+case "stopTimer": {
+  const nowMs = action.nowMs;
+
+  const next = state.tasks.map((t) => {
+    if (t.id !== action.id) return t;
+
+    const stopped = stopTimerFields(t, nowMs);
+    return { ...stopped, updatedAt: new Date().toISOString() };
+  });
+
+  return { ...state, tasks: next };
+}
+
+
     default:
       return state;
   }
+
+  
 }
 
 function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
@@ -221,6 +320,10 @@ function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
       ({
         id: safeRandomId(),
         createdAt: nowIso,
+
+        timerRunning: false,
+        timerStartedAtMs: null,
+        timerAccumulatedMs: 0,
       });
 
     const finalActual =
@@ -232,6 +335,11 @@ function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
       plannedMin: clampInt(plannedMin, { min: 0, max: 10_000 }),
       done: Boolean(done),
       actualMin: finalActual,
+
+      timerRunning: Boolean(base.timerRunning),
+      timerStartedAtMs: typeof base.timerStartedAtMs === "number" ? base.timerStartedAtMs : null,
+      timerAccumulatedMs: typeof base.timerAccumulatedMs === "number" ? base.timerAccumulatedMs : 0,
+
       updatedAt: nowIso,
     });
   }
@@ -435,7 +543,15 @@ export default function App() {
   }
 
   function toggleDone(id, done) {
-    dispatch({ type: "toggleDone", id, done });
+    dispatch({ type: "toggleDone", id, done, nowMs });
+  }
+
+  function startTimer(id) {
+    dispatch({ type: "startTimer", id, nowMs });
+  }
+
+  function stopTimer(id) {
+    dispatch({ type: "stopTimer", id, nowMs });
   }
 
   const warningActualMissingDone = useMemo(() => {
@@ -453,7 +569,7 @@ export default function App() {
           <BedtimeIcon />
 
           <Typography variant="h6" sx={{ fontWeight: 900 }}>
-            Tasks + Sleep Timer
+            Day time budget planner
           </Typography>
 
           <Box sx={{ flex: 1 }} />
@@ -624,6 +740,7 @@ export default function App() {
                     <TableCell>Название</TableCell>
                     <TableCell width={140}>План (мин)</TableCell>
                     <TableCell width={160}>Факт (мин)</TableCell>
+                    <TableCell width={160} align="center">Таймер</TableCell>
                     <TableCell width={120} align="right">
                       Действия
                     </TableCell>
@@ -632,8 +749,10 @@ export default function App() {
 
                 <TableBody>
                   {state.tasks.map((t) => {
-                    
+
                     const factMissing = t.done && (t.actualMin === null || t.actualMin === undefined);
+                    const liveMs = taskTimerMs(t, nowMs);
+                    const liveText = formatDurationMs(liveMs);
 
                     return (
                       <TableRow key={t.id} hover>
@@ -647,10 +766,12 @@ export default function App() {
                         <TableCell>
                           <Typography sx={{ fontWeight: 800 }}>{t.title}</Typography>
 
-                          <Typography sx={{ opacity: 0.6, fontSize: 12 }}>
+
+                        {/* //удалить? */}
+                          {/* <Typography sx={{ opacity: 0.6, fontSize: 12 }}>
                             Обновлено:{" "}
                             {new Date(t.updatedAt || t.createdAt).toLocaleString()}
-                          </Typography>
+                          </Typography> */}
                         </TableCell>
 
                         <TableCell>{t.plannedMin}</TableCell>
@@ -670,6 +791,49 @@ export default function App() {
                             </Typography>
                           ) : null}
                         </TableCell>
+
+<TableCell align="left">
+  <Stack direction="row" alignItems="center" spacing={1} sx={{ whiteSpace: "nowrap" }}>
+    {t.timerRunning ? (
+      <Tooltip title="Остановить таймер">
+        <IconButton
+          size="small"
+          color="warning"
+          onClick={() => stopTimer(t.id)}
+          sx={{ flex: "0 0 auto" }}
+        >
+          <StopIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    ) : (
+      <Tooltip title={t.done ? "Задача уже выполнена" : "Делаю сейчас (запустить таймер)"}>
+        <span>
+          <IconButton
+            size="small"
+            color="primary"
+            disabled={t.done}
+            onClick={() => startTimer(t.id)}
+            sx={{ flex: "0 0 auto" }}
+          >
+            <PlayArrowIcon fontSize="small" />
+          </IconButton>
+        </span>
+      </Tooltip>
+    )}
+
+    <Typography
+      component="span"
+      sx={{ fontFamily: "monospace", fontWeight: 900, flex: "0 0 auto" }}
+    >
+      {liveText}
+    </Typography>
+
+    <Typography component="span" sx={{ opacity: 0.7, fontSize: 12, flex: "0 0 auto" }}>
+      {msToMinutesCeil(liveMs)} мин
+    </Typography>
+  </Stack>
+</TableCell>
+
 
                         <TableCell align="right">
                           <Tooltip title="Редактировать">
