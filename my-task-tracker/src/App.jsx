@@ -368,7 +368,7 @@ export default function App() {
     return {
       plannedNotDoneMin: plannedNotDone,
       actualDoneMin: actualDone,
-      totalWorkMin: plannedNotDone + actualDone,
+      totalWorkMin: plannedNotDone,
     };
   }, [state.tasks]);
 
