@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useReducer, useState } from "react";
+import React, { useEffect, useMemo, useReducer, useState, useRef } from "react";
 import {
   AppBar,
   Box,
@@ -38,13 +38,14 @@ import BedtimeIcon from "@mui/icons-material/Bedtime";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
+import { loadSharedState, saveSharedState, connectSharedState } from "./sharedStateApi";
 
 const STORAGE_KEY = "sleep_tasks_v1";
 
-function hardReset() {
-  localStorage.removeItem(STORAGE_KEY);
-  dispatch({ type: "resetAll" });
-}
+// function hardReset() {
+//   localStorage.removeItem(STORAGE_KEY);
+//   dispatch({ type: "resetAll" });
+// }
 
 function safeRandomId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
@@ -172,116 +173,149 @@ function loadState() {
   }
 }
 
-function saveState({ bedtime, tasks }) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ bedtime, tasks }));
+function normalizeSharedState(incoming) {
+  const base = incoming && typeof incoming === "object" ? incoming : {};
+
+  const bedtime = typeof base.bedtime === "string" ? base.bedtime : "22:30";
+  const tasksRaw = Array.isArray(base.tasks) ? base.tasks : [];
+
+  const updatedAt =
+    typeof base.updatedAt === "number" && Number.isFinite(base.updatedAt) ? base.updatedAt : Date.now();
+
+  const tasks = tasksRaw
+    .filter((t) => t && typeof t === "object")
+    .map((t) => ({
+      id: typeof t.id === "string" ? t.id : safeRandomId(),
+      title: typeof t.title === "string" ? t.title : "",
+      plannedMin: clampInt(t.plannedMin, { min: 0, max: 10_000 }),
+      actualMin:
+        t.actualMin === null || t.actualMin === undefined
+          ? null
+          : clampInt(t.actualMin, { min: 0, max: 10_000 }),
+      done: Boolean(t.done),
+      createdAt: typeof t.createdAt === "string" ? t.createdAt : new Date().toISOString(),
+      updatedAt: typeof t.updatedAt === "string" ? t.updatedAt : new Date().toISOString(),
+
+      timerRunning: Boolean(t.timerRunning),
+      timerStartedAtMs: typeof t.timerStartedAtMs === "number" ? t.timerStartedAtMs : null,
+      timerAccumulatedMs: typeof t.timerAccumulatedMs === "number" ? t.timerAccumulatedMs : 0,
+    }))
+    .filter((t) => t.title.trim().length > 0);
+
+  return { bedtime, tasks, updatedAt };
+}
+
+
+function saveState({ bedtime, tasks, updatedAt }) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ bedtime, tasks, updatedAt }));
 }
 
 function reducer(state, action) {
   switch (action.type) {
     case "init":
-      return action.payload;
+      return normalizeSharedState(action.payload);
 
     case "setBedtime":
-      return { ...state, bedtime: action.bedtime };
+      return { ...state, bedtime: action.bedtime, updatedAt: Date.now() };
 
     case "createTask": {
       const next = [action.task, ...state.tasks];
-      return { ...state, tasks: next };
+      return { ...state, tasks: next, updatedAt: Date.now() };
     }
 
     case "updateTask": {
       const next = state.tasks.map((t) => (t.id === action.task.id ? action.task : t));
-      return { ...state, tasks: next };
+      return { ...state, tasks: next, updatedAt: Date.now() };
     }
 
     case "deleteTask": {
       const next = state.tasks.filter((t) => t.id !== action.id);
-      return { ...state, tasks: next };
+      return { ...state, tasks: next, updatedAt: Date.now() };
     }
 
     case "toggleDone": {
-  const nowMs = action.nowMs;
+      const nowMs = action.nowMs;
 
-  const next = state.tasks.map((t) => {
-    if (t.id !== action.id) return t;
+      const next = state.tasks.map((t) => {
+        if (t.id !== action.id) return t;
 
-    let nt = t;
+        let nt = t;
 
-    // если отмечаем "готово" — остановим таймер и зафиксируем факт
-    if (action.done) {
-      nt = stopTimerFields(nt, nowMs);
+        // если отмечаем "готово" — остановим таймер и зафиксируем факт
+        if (action.done) {
+          nt = stopTimerFields(nt, nowMs);
+        }
+
+        const nextDone = action.done;
+
+        // если задача стала done и факт пустой — возьмём:
+        // 1) actualMin (если уже появился из таймера)
+        // 2) иначе plannedMin
+        const nextActual = nextDone
+          ? (nt.actualMin === null || nt.actualMin === undefined ? nt.plannedMin : nt.actualMin)
+          : nt.actualMin;
+
+        return {
+          ...nt,
+          done: nextDone,
+          actualMin: nextActual,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+
+      return { ...state, tasks: next, updatedAt: Date.now() };
     }
-
-    const nextDone = action.done;
-
-    // если задача стала done и факт пустой — возьмём:
-    // 1) actualMin (если уже появился из таймера)
-    // 2) иначе plannedMin
-    const nextActual = nextDone
-      ? (nt.actualMin === null || nt.actualMin === undefined ? nt.plannedMin : nt.actualMin)
-      : nt.actualMin;
-
-    return {
-      ...nt,
-      done: nextDone,
-      actualMin: nextActual,
-      updatedAt: new Date().toISOString(),
-    };
-  });
-
-  return { ...state, tasks: next };
-}
 
 
     case "resetAll": {
-      return { bedtime: "22:30", tasks: [] };
+      return { bedtime: "22:30", tasks: [], updatedAt: Date.now() };
     }
 
     case "startTimer": {
-  const nowMs = action.nowMs;
+      const nowMs = action.nowMs;
 
-  const next = state.tasks.map((t) => {
-    // 1) если где-то уже идёт таймер — остановим (накопим) его
-    let nt = t;
-    if (t.timerRunning) {
-      nt = stopTimerFields(nt, nowMs);
+      const next = state.tasks.map((t) => {
+        // 1) если где-то уже идёт таймер — остановим (накопим) его
+        let nt = t;
+        if (t.timerRunning) {
+          nt = stopTimerFields(nt, nowMs);
+        }
+
+        // 2) стартуем нужную задачу, если она не done
+        if (nt.id === action.id && !nt.done) {
+          nt = {
+            ...nt,
+            timerRunning: true,
+            timerStartedAtMs: nowMs,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+
+        return nt;
+      });
+
+      return { ...state, tasks: next, updatedAt: Date.now() };
     }
 
-    // 2) стартуем нужную задачу, если она не done
-    if (nt.id === action.id && !nt.done) {
-      nt = {
-        ...nt,
-        timerRunning: true,
-        timerStartedAtMs: nowMs,
-        updatedAt: new Date().toISOString(),
-      };
+    case "stopTimer": {
+      const nowMs = action.nowMs;
+
+      const next = state.tasks.map((t) => {
+        if (t.id !== action.id) return t;
+
+        const stopped = stopTimerFields(t, nowMs);
+        return { ...stopped, updatedAt: new Date().toISOString() };
+      });
+
+      return { ...state, tasks: next, updatedAt: Date.now() };
     }
-
-    return nt;
-  });
-
-  return { ...state, tasks: next };
-}
-
-case "stopTimer": {
-  const nowMs = action.nowMs;
-
-  const next = state.tasks.map((t) => {
-    if (t.id !== action.id) return t;
-
-    const stopped = stopTimerFields(t, nowMs);
-    return { ...stopped, updatedAt: new Date().toISOString() };
-  });
-
-  return { ...state, tasks: next };
-}
 
 
     default:
       return state;
   }
 
-  
+
 }
 
 function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
@@ -413,6 +447,12 @@ function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
   );
 }
 
+const DEFAULT_STATE = {
+  bedtime: "22:30",
+  tasks: [],
+  updatedAt: 0,
+};
+
 export default function App() {
   const theme = useMemo(
     () =>
@@ -434,16 +474,11 @@ export default function App() {
     []
   );
 
-  const DEFAULT_STATE = {
-  bedtime: "22:30",
-  tasks: [],
-};
+  const [state, dispatch] = useReducer(reducer, DEFAULT_STATE);
 
-const [state, dispatch] = useReducer(
-  reducer,
-  DEFAULT_STATE,
-  (initial) => loadState() ?? initial
-);
+  const syncReadyRef = useRef(false);
+  const applyingRemoteRef = useRef(false);
+  const lastServerUpdatedAtRef = useRef(0);
 
   const [nowMs, setNowMs] = useState(Date.now());
 
@@ -457,10 +492,82 @@ const [state, dispatch] = useReducer(
   //   if (saved) dispatch({ type: "init", payload: saved });
   // }, []);
 
-  // persist
   useEffect(() => {
-    saveState(state);
-  }, [state]);
+    let mounted = true;
+
+    (async () => {
+      try {
+        const remote = await loadSharedState();
+        if (!mounted) return;
+
+        const normalized = normalizeSharedState(remote);
+
+        applyingRemoteRef.current = true;
+        lastServerUpdatedAtRef.current = normalized.updatedAt;
+        dispatch({ type: "init", payload: normalized });
+        applyingRemoteRef.current = false;
+
+        saveState(normalized);
+        syncReadyRef.current = true;
+      } catch (e) {
+        const local = loadState();
+        if (!mounted) return;
+
+        if (local) {
+          const normalized = normalizeSharedState(local);
+          applyingRemoteRef.current = true;
+          lastServerUpdatedAtRef.current = normalized.updatedAt;
+          dispatch({ type: "init", payload: normalized });
+          applyingRemoteRef.current = false;
+        }
+
+        syncReadyRef.current = true;
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const disconnect = connectSharedState((serverState) => {
+      const normalized = normalizeSharedState(serverState);
+
+      applyingRemoteRef.current = true;
+      lastServerUpdatedAtRef.current = normalized.updatedAt;
+      dispatch({ type: "init", payload: normalized });
+      applyingRemoteRef.current = false;
+
+      saveState(normalized);
+    });
+
+    return disconnect;
+  }, []);
+
+
+  useEffect(() => {
+  // локальный кэш
+  saveState(state);
+
+  // пока не попытались загрузиться (сервер/локал), не отправляем ничего
+  if (!syncReadyRef.current) return;
+
+  // если это пришло с сервера — не отправляем обратно
+  if (applyingRemoteRef.current) return;
+
+  // если состояние ещё "нулевое" — не отправляем
+  if (typeof state.updatedAt !== "number" || !Number.isFinite(state.updatedAt) || state.updatedAt <= 0) return;
+
+  // если мы уже на этой версии сервера — не отправляем
+  if (state.updatedAt === lastServerUpdatedAtRef.current) return;
+
+  // помечаем, что мы отправляем эту версию
+  lastServerUpdatedAtRef.current = state.updatedAt;
+
+  saveSharedState(state).catch(console.error);
+}, [state]);
+
 
   // timer tick
   useEffect(() => {
@@ -565,6 +672,11 @@ const [state, dispatch] = useReducer(
     dispatch({ type: "stopTimer", id, nowMs });
   }
 
+  function hardReset() {
+    localStorage.removeItem(STORAGE_KEY);
+    dispatch({ type: "resetAll" });
+  }
+
   const warningActualMissingDone = useMemo(() => {
     // done=true и actualMin пустой/undefined — в нашем reducer такое почти не останется,
     // но на всякий случай подсветим.
@@ -587,7 +699,7 @@ const [state, dispatch] = useReducer(
 
           <Tooltip title="Сбросить всё (сон + задачи)">
             <IconButton onClick={hardReset}>
-            <RestartAltIcon />
+              <RestartAltIcon />
             </IconButton>
 
           </Tooltip>
@@ -697,9 +809,9 @@ const [state, dispatch] = useReducer(
                           bedtimeDateMs === null
                             ? "Финиш: —"
                             : `Финиш если начать сейчас: ${new Date(completionAtMs).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}`
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}`
                         }
                       />
                     </Stack>
@@ -720,8 +832,8 @@ const [state, dispatch] = useReducer(
                       {progress === null
                         ? ""
                         : progress <= 100
-                        ? `План укладывается: ${progress}% времени до сна занято задачами`
-                        : `Переплан: задач больше, чем времени до сна (${progress}%+)`}
+                          ? `План укладывается: ${progress}% времени до сна занято задачами`
+                          : `Переплан: задач больше, чем времени до сна (${progress}%+)`}
                     </Typography>
                   </Box>
                 </>
@@ -779,7 +891,7 @@ const [state, dispatch] = useReducer(
                           <Typography sx={{ fontWeight: 800 }}>{t.title}</Typography>
 
 
-                        {/* //удалить? */}
+                          {/* //удалить? */}
                           {/* <Typography sx={{ opacity: 0.6, fontSize: 12 }}>
                             Обновлено:{" "}
                             {new Date(t.updatedAt || t.createdAt).toLocaleString()}
