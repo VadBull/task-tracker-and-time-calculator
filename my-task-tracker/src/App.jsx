@@ -74,8 +74,8 @@ function isBedtimeValid(timeStr) {
   const mins = parseTimeToMinutes(timeStr);
   if (mins === null) return false;
 
-  // строго > 19:00 (1140), и строго < 23:59 (1439)
-  return mins > 19 * 60 && mins < (23 * 60 + 59);
+  // строго > 14:00 (1140), и строго < 23:59 (1439)
+  return mins > 14 * 60 && mins < (23 * 60 + 59);
 }
 
 function dateAtTodayMinutes(minsFromMidnight) {
