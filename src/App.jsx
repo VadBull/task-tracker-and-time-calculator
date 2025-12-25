@@ -721,8 +721,8 @@ export default function App() {
         <Toolbar sx={{ gap: 1.5 }}>
           <BedtimeIcon />
 
-          <Typography variant="h6" sx={{ fontWeight: 900 }}>
-            Day budget time planner
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Day time planner
           </Typography>
 
           <Box sx={{ flex: 1 }} />
@@ -739,9 +739,29 @@ export default function App() {
             </IconButton>
           </Tooltip>
 
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={openCreate}
+            sx={{
+              lineHeight: 1.05,
+              py: 0.9,
+
+              // центрируем иконку вертикально
+              "& .MuiButton-startIcon": {
+                display: "inline-flex",
+                alignItems: "center",
+                alignSelf: "center",
+                mt: 0,
+              },
+
+              // чуть уменьшим сам плюс (опционально, чтобы выглядел аккуратнее)
+              "& .MuiButton-startIcon > *:nth-of-type(1)": { fontSize: 18 },
+            }}
+          >
             Добавить задачу
           </Button>
+
         </Toolbar>
       </AppBar>
 
@@ -752,7 +772,7 @@ export default function App() {
               <Stack direction="row" spacing={1} alignItems="center">
                 <AccessTimeIcon />
 
-                <Typography sx={{ fontWeight: 900 }}>
+                <Typography sx={{ fontWeight: 640 }}>
                   Завершаю в:
                 </Typography>
 
@@ -788,7 +808,7 @@ export default function App() {
 
           <Paper sx={{ p: 2 }}>
             <Stack spacing={1}>
-              <Typography sx={{ fontWeight: 900 }}>Таймер (по формуле)</Typography>
+              <Typography sx={{ fontWeight: 640 }}>Таймер (по формуле)</Typography>
 
               {!bedtimeValid ? (
                 <Alert severity="error">
@@ -868,7 +888,7 @@ export default function App() {
 
           <Paper sx={{ p: 2 }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between">
-              <Typography sx={{ fontWeight: 900 }}>Список задач</Typography>
+              <Typography sx={{ fontWeight: 640 }}>Список задач</Typography>
 
               <Button variant="outlined" onClick={openCreate} startIcon={<AddIcon />}>
                 Добавить
@@ -910,7 +930,7 @@ export default function App() {
                           </TableCell>
 
                           <TableCell>
-                            <Typography sx={{ fontWeight: 800 }}>{t.title}</Typography>
+                            <Typography sx={{ fontWeight: 640 }}>{t.title}</Typography>
                           </TableCell>
 
                           <TableCell>{t.plannedMin}</TableCell>
@@ -956,7 +976,7 @@ export default function App() {
                                 </Tooltip>
                               )}
 
-                              <Typography component="span" sx={{ fontFamily: "monospace", fontWeight: 900, flex: "0 0 auto" }}>
+                              <Typography component="span" sx={{ fontFamily: "monospace", fontWeight: 640, flex: "0 0 auto" }}>
                                 {liveText}
                               </Typography>
 
