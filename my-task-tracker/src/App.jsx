@@ -793,8 +793,8 @@ export default function App() {
                       <Chip
                         label={
                           timeUntilBedMs === null
-                            ? "До сна: —"
-                            : `До сна: ${formatDurationMs(timeUntilBedMs)}`
+                            ? "До завершения: —"
+                            : `До завершения: ${formatDurationMs(timeUntilBedMs)}`
                         }
                       />
 
