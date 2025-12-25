@@ -30,6 +30,7 @@ import {
   Alert,
 } from "@mui/material";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
 import AddIcon from "@mui/icons-material/Add";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -39,14 +40,13 @@ import BedtimeIcon from "@mui/icons-material/Bedtime";
 import FactCheckIcon from "@mui/icons-material/FactCheck";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
+import SettingsBrightnessIcon from "@mui/icons-material/SettingsBrightness";
 import { loadSharedState, saveSharedState, connectSharedState } from "./sharedStateApi";
 
 const STORAGE_KEY = "sleep_tasks_v1";
-
-// function hardReset() {
-//   localStorage.removeItem(STORAGE_KEY);
-//   dispatch({ type: "resetAll" });
-// }
+const THEME_MODE_KEY = "ui_theme_mode_v1";
 
 function safeRandomId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
@@ -136,7 +136,6 @@ function stopTimerFields(task, nowMs) {
   };
 }
 
-
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -150,7 +149,6 @@ function loadState() {
     const normalizedTasks = tasks
       .filter((t) => t && typeof t === "object")
       .map((t) => ({
-
         id: typeof t.id === "string" ? t.id : safeRandomId(),
         title: typeof t.title === "string" ? t.title : "",
         plannedMin: clampInt(t.plannedMin, { min: 0, max: 10_000 }),
@@ -205,7 +203,6 @@ function normalizeSharedState(incoming) {
 
   return { bedtime, tasks, updatedAt };
 }
-
 
 function saveState({ bedtime, tasks, updatedAt }) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ bedtime, tasks, updatedAt }));
@@ -267,7 +264,6 @@ function reducer(state, action) {
       return { ...state, tasks: next, updatedAt: Date.now() };
     }
 
-
     case "resetAll": {
       return { bedtime: "22:30", tasks: [], updatedAt: Date.now() };
     }
@@ -311,12 +307,9 @@ function reducer(state, action) {
       return { ...state, tasks: next, updatedAt: Date.now() };
     }
 
-
     default:
       return state;
   }
-
-
 }
 
 function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
@@ -335,9 +328,7 @@ function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
     setTitle(t?.title ?? "");
     setPlannedMin(t?.plannedMin ?? 25);
     setDone(Boolean(t?.done ?? false));
-    setActualMin(
-      t?.actualMin === null || t?.actualMin === undefined ? "" : String(t.actualMin)
-    );
+    setActualMin(t?.actualMin === null || t?.actualMin === undefined ? "" : String(t.actualMin));
 
     setTouched(false);
   }, [open, initialTask]);
@@ -366,8 +357,7 @@ function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
         timerAccumulatedMs: 0,
       });
 
-    const finalActual =
-      done ? (actualParsed === null ? plannedMin : actualParsed) : actualParsed;
+    const finalActual = done ? (actualParsed === null ? plannedMin : actualParsed) : actualParsed;
 
     onSubmit({
       ...base,
@@ -428,9 +418,7 @@ function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
             disabled={!done}
             error={touched && !actualOk}
             helperText={
-              done
-                ? "Если оставить пустым — возьмём план как факт"
-                : "Факт можно заполнить позже при завершении"
+              done ? "Если оставить пустым — возьмём план как факт" : "Факт можно заполнить позже при завершении"
             }
             fullWidth
           />
@@ -455,26 +443,63 @@ const DEFAULT_STATE = {
 };
 
 export default function App() {
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode: "dark",
-          primary: { main: "#4c7dff" },
-          background: {
-            default: "#0b1020",
-            paper: "#121a33",
+  // ===== THEME (dark / light / system) =====
+  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
+
+  const [themeMode, setThemeMode] = useState(() => {
+    try {
+      const v = localStorage.getItem(THEME_MODE_KEY);
+      if (v === "dark" || v === "light" || v === "system") return v;
+      return "dark";
+    } catch {
+      return "dark";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_MODE_KEY, themeMode);
+    } catch {
+      // ignore
+    }
+  }, [themeMode]);
+
+  const resolvedMode = themeMode === "system" ? (prefersDark ? "dark" : "light") : themeMode;
+
+  function cycleThemeMode() {
+    setThemeMode((prev) => (prev === "dark" ? "light" : prev === "light" ? "system" : "dark"));
+  }
+
+  const theme = useMemo(() => {
+    const isDark = resolvedMode === "dark";
+
+    return createTheme({
+      palette: {
+        mode: resolvedMode,
+        primary: { main: isDark ? "#4c7dff" : "#2f5cff" },
+        background: {
+          default: isDark ? "#0b1020" : "#f5f6fa",
+          paper: isDark ? "#121a33" : "#ffffff",
+        },
+      },
+      shape: { borderRadius: 14 },
+      typography: {
+        fontFamily:
+          'system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
+      },
+      components: {
+        MuiAppBar: {
+          styleOverrides: {
+            root: {
+              backgroundImage: "none",
+            },
           },
         },
-        shape: { borderRadius: 14 },
-        typography: {
-          fontFamily:
-            'system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
-        },
-      }),
-    []
-  );
+      },
+    });
+  }, [resolvedMode]);
 
+  // ===== APP STATE =====
   const [state, dispatch] = useReducer(reducer, DEFAULT_STATE);
 
   const syncReadyRef = useRef(false);
@@ -486,12 +511,6 @@ export default function App() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState("create"); // create | edit
   const [editingTask, setEditingTask] = useState(null);
-
-  // // init from localStorage
-  // useEffect(() => {
-  //   const saved = loadState();
-  //   if (saved) dispatch({ type: "init", payload: saved });
-  // }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -546,29 +565,27 @@ export default function App() {
     return disconnect;
   }, []);
 
-
   useEffect(() => {
-  // локальный кэш
-  saveState(state);
+    // локальный кэш
+    saveState(state);
 
-  // пока не попытались загрузиться (сервер/локал), не отправляем ничего
-  if (!syncReadyRef.current) return;
+    // пока не попытались загрузиться (сервер/локал), не отправляем ничего
+    if (!syncReadyRef.current) return;
 
-  // если это пришло с сервера — не отправляем обратно
-  if (applyingRemoteRef.current) return;
+    // если это пришло с сервера — не отправляем обратно
+    if (applyingRemoteRef.current) return;
 
-  // если состояние ещё "нулевое" — не отправляем
-  if (typeof state.updatedAt !== "number" || !Number.isFinite(state.updatedAt) || state.updatedAt <= 0) return;
+    // если состояние ещё "нулевое" — не отправляем
+    if (typeof state.updatedAt !== "number" || !Number.isFinite(state.updatedAt) || state.updatedAt <= 0) return;
 
-  // если мы уже на этой версии сервера — не отправляем
-  if (state.updatedAt === lastServerUpdatedAtRef.current) return;
+    // если мы уже на этой версии сервера — не отправляем
+    if (state.updatedAt === lastServerUpdatedAtRef.current) return;
 
-  // помечаем, что мы отправляем эту версию
-  lastServerUpdatedAtRef.current = state.updatedAt;
+    // помечаем, что мы отправляем эту версию
+    lastServerUpdatedAtRef.current = state.updatedAt;
 
-  saveSharedState(state).catch(console.error);
-}, [state]);
-
+    saveSharedState(state).catch(console.error);
+  }, [state]);
 
   // timer tick
   useEffect(() => {
@@ -621,8 +638,6 @@ export default function App() {
   }, [bedtimeValid, bedtimeMinutes]);
 
   const progress = useMemo(() => {
-    // прогресс от "сейчас до сна", относительно "сейчас + работы".
-    // если буфер >= 0: работа помещается, можно показать загрузку "занятости"
     // занятость = work / timeUntilBed
     if (timeUntilBedMs === null) return null;
 
@@ -679,10 +694,24 @@ export default function App() {
   }
 
   const warningActualMissingDone = useMemo(() => {
-    // done=true и actualMin пустой/undefined — в нашем reducer такое почти не останется,
-    // но на всякий случай подсветим.
     return state.tasks.some((t) => t.done && (t.actualMin === null || t.actualMin === undefined));
   }, [state.tasks]);
+
+  const themeTooltip =
+    themeMode === "system"
+      ? `Тема: системная (${resolvedMode === "dark" ? "тёмная" : "светлая"}). Нажми: → тёмная`
+      : themeMode === "dark"
+        ? "Тема: тёмная. Нажми: → светлая"
+        : "Тема: светлая. Нажми: → системная";
+
+  const themeIcon =
+    themeMode === "system" ? (
+      <SettingsBrightnessIcon />
+    ) : resolvedMode === "dark" ? (
+      <Brightness4Icon />
+    ) : (
+      <Brightness7Icon />
+    );
 
   return (
     <ThemeProvider theme={theme}>
@@ -698,11 +727,16 @@ export default function App() {
 
           <Box sx={{ flex: 1 }} />
 
+          <Tooltip title={themeTooltip}>
+            <IconButton onClick={cycleThemeMode} aria-label="Переключить тему">
+              {themeIcon}
+            </IconButton>
+          </Tooltip>
+
           <Tooltip title="Сбросить всё (сон + задачи)">
             <IconButton onClick={hardReset}>
               <RestartAltIcon />
             </IconButton>
-
           </Tooltip>
 
           <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate}>
@@ -714,11 +748,13 @@ export default function App() {
       <Box sx={{ p: 2 }}>
         <Stack spacing={2} sx={{ maxWidth: 1100, mx: "auto" }}>
           <Paper sx={{ p: 2 }}>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ flex: 1 }}>
+            <Stack sx={{ flex: 1 }}>
+              <Stack direction="row" spacing={1} alignItems="center">
                 <AccessTimeIcon />
 
-                <Typography sx={{ fontWeight: 900 }}>Завершаю в: </Typography>
+                <Typography sx={{ fontWeight: 900 }}>
+                  Завершаю в:
+                </Typography>
 
                 <TextField
                   type="time"
@@ -727,25 +763,21 @@ export default function App() {
                   onChange={(e) => dispatch({ type: "setBedtime", bedtime: e.target.value })}
                   sx={{ width: 140 }}
                   error={!bedtimeValid}
-                  helperText={
-                    bedtimeValid
-                      ? " "
-                      : "Строго больше 14:00 и строго меньше 23:59"
-                  }
+                  helperText={null}
+                  FormHelperTextProps={{ sx: { display: "none" } }}
                 />
               </Stack>
 
-              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                <Chip
-                  icon={<FactCheckIcon />}
-                  label={`Готово (факт): ${sums.actualDoneMin} мин`}
-                />
-
-                <Chip label={`Осталось (план): ${sums.plannedNotDoneMin} мин`} />
-
-                <Chip label={`Всего работ: ${sums.totalWorkMin} мин`} />
-              </Stack>
+              {!bedtimeValid ? (
+                <Typography variant="caption" sx={{ mt: 0.5, color: "error.main", textAlign: "left" }}>
+                  Строго больше 14:00 и строго меньше 23:59
+                </Typography>
+              ) : (
+                // чтобы высота блока не “прыгала”, оставим пустую строку
+                <Box sx={{ height: 1 }} />
+              )}
             </Stack>
+
 
             {warningActualMissingDone ? (
               <Alert severity="warning" sx={{ mt: 2 }}>
@@ -770,9 +802,7 @@ export default function App() {
                     alignItems={{ xs: "stretch", md: "center" }}
                   >
                     <Box sx={{ flex: 1 }}>
-                      <Typography sx={{ opacity: 0.8, fontSize: 13 }}>
-                        Остаток буфера до завершения:
-                      </Typography>
+                      <Typography sx={{ opacity: 0.8, fontSize: 13 }}>Остаток буфера до завершения:</Typography>
 
                       <Typography
                         sx={{
@@ -792,27 +822,21 @@ export default function App() {
                     <Stack spacing={1} sx={{ minWidth: { md: 340 } }}>
                       <Chip
                         label={
-                          timeUntilBedMs === null
-                            ? "До завершения: —"
-                            : `До завершения: ${formatDurationMs(timeUntilBedMs)}`
+                          timeUntilBedMs === null ? "До завершения: —" : `До завершения: ${formatDurationMs(timeUntilBedMs)}`
                         }
                       />
 
                       <Chip label={`Минут работы (всего): ${sums.totalWorkMin}`} />
 
                       <Chip
-                        color={
-                          bedtimeDateMs !== null && completionAtMs > bedtimeDateMs
-                            ? "error"
-                            : "success"
-                        }
+                        color={bedtimeDateMs !== null && completionAtMs > bedtimeDateMs ? "error" : "success"}
                         label={
                           bedtimeDateMs === null
                             ? "Финиш: —"
                             : `Финиш если начать сейчас: ${new Date(completionAtMs).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}`
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}`
                         }
                       />
                     </Stack>
@@ -854,9 +878,7 @@ export default function App() {
             <Divider sx={{ my: 2 }} />
 
             {state.tasks.length === 0 ? (
-              <Alert severity="info">
-                Пока задач нет. Добавь задачу — и таймер начнёт учитывать план/факт.
-              </Alert>
+              <Alert severity="info">Пока задач нет. Добавь задачу — и таймер начнёт учитывать план/факт.</Alert>
             ) : (
               <TableContainer sx={{ width: "100%", overflowX: "auto" }}>
                 <Table size="small" sx={{ minWidth: 760 }}>
@@ -866,7 +888,9 @@ export default function App() {
                       <TableCell>Название</TableCell>
                       <TableCell width={140}>План (мин)</TableCell>
                       <TableCell width={160}>Факт (мин)</TableCell>
-                      <TableCell width={160} align="center">Таймер</TableCell>
+                      <TableCell width={160} align="center">
+                        Таймер
+                      </TableCell>
                       <TableCell width={120} align="right">
                         Действия
                       </TableCell>
@@ -875,7 +899,6 @@ export default function App() {
 
                   <TableBody>
                     {state.tasks.map((t) => {
-
                       const factMissing = t.done && (t.actualMin === null || t.actualMin === undefined);
                       const liveMs = taskTimerMs(t, nowMs);
                       const liveText = formatDurationMs(liveMs);
@@ -883,38 +906,24 @@ export default function App() {
                       return (
                         <TableRow key={t.id} hover>
                           <TableCell>
-                            <Checkbox
-                              checked={t.done}
-                              onChange={(e) => toggleDone(t.id, e.target.checked)}
-                            />
+                            <Checkbox checked={t.done} onChange={(e) => toggleDone(t.id, e.target.checked)} />
                           </TableCell>
 
                           <TableCell>
                             <Typography sx={{ fontWeight: 800 }}>{t.title}</Typography>
-
-
-                            {/* //удалить? */}
-                            {/* <Typography sx={{ opacity: 0.6, fontSize: 12 }}>
-                              Обновлено:{" "}
-                              {new Date(t.updatedAt || t.createdAt).toLocaleString()}
-                            </Typography> */}
                           </TableCell>
 
                           <TableCell>{t.plannedMin}</TableCell>
 
                           <TableCell>
                             {t.actualMin === null || t.actualMin === undefined ? (
-                              <Typography sx={{ opacity: 0.6 }}>
-                                {t.done ? "— (будет = план)" : "—"}
-                              </Typography>
+                              <Typography sx={{ opacity: 0.6 }}>{t.done ? "— (будет = план)" : "—"}</Typography>
                             ) : (
                               t.actualMin
                             )}
 
                             {factMissing ? (
-                              <Typography sx={{ color: "warning.main", fontSize: 12 }}>
-                                факта нет
-                              </Typography>
+                              <Typography sx={{ color: "warning.main", fontSize: 12 }}>факта нет</Typography>
                             ) : null}
                           </TableCell>
 
@@ -947,10 +956,7 @@ export default function App() {
                                 </Tooltip>
                               )}
 
-                              <Typography
-                                component="span"
-                                sx={{ fontFamily: "monospace", fontWeight: 900, flex: "0 0 auto" }}
-                              >
+                              <Typography component="span" sx={{ fontFamily: "monospace", fontWeight: 900, flex: "0 0 auto" }}>
                                 {liveText}
                               </Typography>
 
@@ -959,7 +965,6 @@ export default function App() {
                               </Typography>
                             </Stack>
                           </TableCell>
-
 
                           <TableCell align="right">
                             <Tooltip title="Редактировать">
