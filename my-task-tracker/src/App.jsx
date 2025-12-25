@@ -23,6 +23,7 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TableContainer,
   Checkbox,
   Tooltip,
   LinearProgress,
@@ -692,7 +693,7 @@ export default function App() {
           <BedtimeIcon />
 
           <Typography variant="h6" sx={{ fontWeight: 900 }}>
-            Day time budget planner
+            Day budget time planner
           </Typography>
 
           <Box sx={{ flex: 1 }} />
@@ -717,7 +718,7 @@ export default function App() {
               <Stack direction="row" spacing={1} alignItems="center" sx={{ flex: 1 }}>
                 <AccessTimeIcon />
 
-                <Typography sx={{ fontWeight: 900 }}>Ложусь спать</Typography>
+                <Typography sx={{ fontWeight: 900 }}>Завершаю в: </Typography>
 
                 <TextField
                   type="time"
@@ -729,7 +730,7 @@ export default function App() {
                   helperText={
                     bedtimeValid
                       ? " "
-                      : "Строго больше 19:00 и строго меньше 23:59"
+                      : "Строго больше 14:00 и строго меньше 23:59"
                   }
                 />
               </Stack>
@@ -759,7 +760,7 @@ export default function App() {
 
               {!bedtimeValid ? (
                 <Alert severity="error">
-                  Укажи корректное время “Ложусь спать”, иначе таймер не считается.
+                  Укажи корректное время “Завершаю в:” иначе таймер не считается.
                 </Alert>
               ) : (
                 <>
@@ -770,7 +771,7 @@ export default function App() {
                   >
                     <Box sx={{ flex: 1 }}>
                       <Typography sx={{ opacity: 0.8, fontSize: 13 }}>
-                        Остаток буфера до сна:
+                        Остаток буфера до завершения:
                       </Typography>
 
                       <Typography
@@ -784,7 +785,7 @@ export default function App() {
                       </Typography>
 
                       <Typography sx={{ opacity: 0.75, fontSize: 13 }}>
-                        Формула: (сон − сейчас) − Σ(план незавершённых) − Σ(факт завершённых)
+                        Формула: (дедлайн − сейчас) − Σ(план незавершённых) − Σ(факт завершённых)
                       </Typography>
                     </Box>
 
@@ -857,126 +858,128 @@ export default function App() {
                 Пока задач нет. Добавь задачу — и таймер начнёт учитывать план/факт.
               </Alert>
             ) : (
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell width={60}>Готово</TableCell>
-                    <TableCell>Название</TableCell>
-                    <TableCell width={140}>План (мин)</TableCell>
-                    <TableCell width={160}>Факт (мин)</TableCell>
-                    <TableCell width={160} align="center">Таймер</TableCell>
-                    <TableCell width={120} align="right">
-                      Действия
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
+              <TableContainer sx={{ width: "100%", overflowX: "auto" }}>
+                <Table size="small" sx={{ minWidth: 760 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell width={60}>Готово</TableCell>
+                      <TableCell>Название</TableCell>
+                      <TableCell width={140}>План (мин)</TableCell>
+                      <TableCell width={160}>Факт (мин)</TableCell>
+                      <TableCell width={160} align="center">Таймер</TableCell>
+                      <TableCell width={120} align="right">
+                        Действия
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
 
-                <TableBody>
-                  {state.tasks.map((t) => {
+                  <TableBody>
+                    {state.tasks.map((t) => {
 
-                    const factMissing = t.done && (t.actualMin === null || t.actualMin === undefined);
-                    const liveMs = taskTimerMs(t, nowMs);
-                    const liveText = formatDurationMs(liveMs);
+                      const factMissing = t.done && (t.actualMin === null || t.actualMin === undefined);
+                      const liveMs = taskTimerMs(t, nowMs);
+                      const liveText = formatDurationMs(liveMs);
 
-                    return (
-                      <TableRow key={t.id} hover>
-                        <TableCell>
-                          <Checkbox
-                            checked={t.done}
-                            onChange={(e) => toggleDone(t.id, e.target.checked)}
-                          />
-                        </TableCell>
+                      return (
+                        <TableRow key={t.id} hover>
+                          <TableCell>
+                            <Checkbox
+                              checked={t.done}
+                              onChange={(e) => toggleDone(t.id, e.target.checked)}
+                            />
+                          </TableCell>
 
-                        <TableCell>
-                          <Typography sx={{ fontWeight: 800 }}>{t.title}</Typography>
+                          <TableCell>
+                            <Typography sx={{ fontWeight: 800 }}>{t.title}</Typography>
 
 
-                          {/* //удалить? */}
-                          {/* <Typography sx={{ opacity: 0.6, fontSize: 12 }}>
-                            Обновлено:{" "}
-                            {new Date(t.updatedAt || t.createdAt).toLocaleString()}
-                          </Typography> */}
-                        </TableCell>
+                            {/* //удалить? */}
+                            {/* <Typography sx={{ opacity: 0.6, fontSize: 12 }}>
+                              Обновлено:{" "}
+                              {new Date(t.updatedAt || t.createdAt).toLocaleString()}
+                            </Typography> */}
+                          </TableCell>
 
-                        <TableCell>{t.plannedMin}</TableCell>
+                          <TableCell>{t.plannedMin}</TableCell>
 
-                        <TableCell>
-                          {t.actualMin === null || t.actualMin === undefined ? (
-                            <Typography sx={{ opacity: 0.6 }}>
-                              {t.done ? "— (будет = план)" : "—"}
-                            </Typography>
-                          ) : (
-                            t.actualMin
-                          )}
-
-                          {factMissing ? (
-                            <Typography sx={{ color: "warning.main", fontSize: 12 }}>
-                              факта нет
-                            </Typography>
-                          ) : null}
-                        </TableCell>
-
-                        <TableCell align="left">
-                          <Stack direction="row" alignItems="center" spacing={1} sx={{ whiteSpace: "nowrap" }}>
-                            {t.timerRunning ? (
-                              <Tooltip title="Остановить таймер">
-                                <IconButton
-                                  size="small"
-                                  color="warning"
-                                  onClick={() => stopTimer(t.id)}
-                                  sx={{ flex: "0 0 auto" }}
-                                >
-                                  <StopIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
+                          <TableCell>
+                            {t.actualMin === null || t.actualMin === undefined ? (
+                              <Typography sx={{ opacity: 0.6 }}>
+                                {t.done ? "— (будет = план)" : "—"}
+                              </Typography>
                             ) : (
-                              <Tooltip title={t.done ? "Задача уже выполнена" : "Делаю сейчас (запустить таймер)"}>
-                                <span>
-                                  <IconButton
-                                    size="small"
-                                    color="primary"
-                                    disabled={t.done}
-                                    onClick={() => startTimer(t.id)}
-                                    sx={{ flex: "0 0 auto" }}
-                                  >
-                                    <PlayArrowIcon fontSize="small" />
-                                  </IconButton>
-                                </span>
-                              </Tooltip>
+                              t.actualMin
                             )}
 
-                            <Typography
-                              component="span"
-                              sx={{ fontFamily: "monospace", fontWeight: 900, flex: "0 0 auto" }}
-                            >
-                              {liveText}
-                            </Typography>
+                            {factMissing ? (
+                              <Typography sx={{ color: "warning.main", fontSize: 12 }}>
+                                факта нет
+                              </Typography>
+                            ) : null}
+                          </TableCell>
 
-                            <Typography component="span" sx={{ opacity: 0.7, fontSize: 12, flex: "0 0 auto" }}>
-                              {msToMinutesCeil(liveMs)} мин
-                            </Typography>
-                          </Stack>
-                        </TableCell>
+                          <TableCell align="left">
+                            <Stack direction="row" alignItems="center" spacing={1} sx={{ whiteSpace: "nowrap" }}>
+                              {t.timerRunning ? (
+                                <Tooltip title="Остановить таймер">
+                                  <IconButton
+                                    size="small"
+                                    color="warning"
+                                    onClick={() => stopTimer(t.id)}
+                                    sx={{ flex: "0 0 auto" }}
+                                  >
+                                    <StopIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              ) : (
+                                <Tooltip title={t.done ? "Задача уже выполнена" : "Делаю сейчас (запустить таймер)"}>
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      color="primary"
+                                      disabled={t.done}
+                                      onClick={() => startTimer(t.id)}
+                                      sx={{ flex: "0 0 auto" }}
+                                    >
+                                      <PlayArrowIcon fontSize="small" />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              )}
+
+                              <Typography
+                                component="span"
+                                sx={{ fontFamily: "monospace", fontWeight: 900, flex: "0 0 auto" }}
+                              >
+                                {liveText}
+                              </Typography>
+
+                              <Typography component="span" sx={{ opacity: 0.7, fontSize: 12, flex: "0 0 auto" }}>
+                                {msToMinutesCeil(liveMs)} мин
+                              </Typography>
+                            </Stack>
+                          </TableCell>
 
 
-                        <TableCell align="right">
-                          <Tooltip title="Редактировать">
-                            <IconButton onClick={() => openEdit(t)}>
-                              <EditOutlinedIcon />
-                            </IconButton>
-                          </Tooltip>
+                          <TableCell align="right">
+                            <Tooltip title="Редактировать">
+                              <IconButton onClick={() => openEdit(t)}>
+                                <EditOutlinedIcon />
+                              </IconButton>
+                            </Tooltip>
 
-                          <Tooltip title="Удалить">
-                            <IconButton color="error" onClick={() => deleteTask(t.id)}>
-                              <DeleteOutlineIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                            <Tooltip title="Удалить">
+                              <IconButton color="error" onClick={() => deleteTask(t.id)}>
+                                <DeleteOutlineIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
           </Paper>
         </Stack>
