@@ -10,6 +10,14 @@ npm run sync
 npm run dev -- --host
 ```
 
+## Backend (Spring + Postgres)
+
+The backend replaces `sync-server.js` and provides the same `/state` REST and WebSocket interface on port `3001`.
+
+```bash
+docker compose up --build
+```
+
 ---
 Это таймер времени для планирования задач и наглядного представления сколько свободного времени еще осталось, прежде чем пойти ко сну и/или завершить рабочий день.
 
