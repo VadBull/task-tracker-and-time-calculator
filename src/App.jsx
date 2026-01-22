@@ -37,14 +37,121 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import BedtimeIcon from "@mui/icons-material/Bedtime";
-import FactCheckIcon from "@mui/icons-material/FactCheck";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import SettingsBrightnessIcon from "@mui/icons-material/SettingsBrightness";
-import { loadSharedState, saveSharedState, connectSharedState } from "./sharedStateApi";
 
+// ===== BACKEND API =====
+// Если фронт и бэк на разных origin/портах:
+// - либо настрой Vite proxy для "/api" -> "http://localhost:8080"
+// - либо поставь API_BASE = "http://localhost:8080"
+const API_BASE = "http://localhost:8080";
+
+async function safeReadText(res) {
+  try {
+    return await res.text();
+  } catch {
+    return "";
+  }
+}
+
+async function safeReadJson(res) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function loadSharedState() {
+  const res = await fetch(`${API_BASE}/api/v1/state`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!res.ok) {
+    const txt = await safeReadText(res);
+    throw new Error(`loadSharedState failed: ${res.status} ${txt}`);
+  }
+
+  const json = await safeReadJson(res);
+  if (!json || typeof json !== "object") {
+    throw new Error("loadSharedState failed: invalid JSON");
+  }
+
+  return json;
+}
+
+class SaveConflictError extends Error {
+  constructor(message, currentState) {
+    super(message);
+    this.name = "SaveConflictError";
+    this.currentState = currentState;
+  }
+}
+
+async function saveSharedState(state) {
+  const res = await fetch(`${API_BASE}/api/v1/state`, {
+    method: "PUT",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(state),
+  });
+
+  if (res.status === 409) {
+    const body = await safeReadJson(res);
+    const current = body && typeof body === "object" ? body.currentState : null;
+    throw new SaveConflictError("State conflict (409): incoming state is stale", current);
+  }
+
+  if (!res.ok) {
+    const txt = await safeReadText(res);
+    throw new Error(`saveSharedState failed: ${res.status} ${txt}`);
+  }
+
+  const json = await safeReadJson(res);
+  if (!json || typeof json !== "object") {
+    throw new Error("saveSharedState failed: invalid JSON");
+  }
+
+  return json;
+}
+
+function connectSharedState(onState) {
+  const es = new EventSource(`${API_BASE}/api/v1/state/stream`);
+
+  const handler = (ev) => {
+    try {
+      const parsed = JSON.parse(ev.data);
+      onState(parsed);
+    } catch {
+      // ignore broken event
+    }
+  };
+
+  es.addEventListener("state", handler);
+
+  // EventSource сам пытается реконнектиться.
+  // Можно добавить логирование ошибок, но UI обычно не должен дёргаться.
+  es.onerror = () => {
+    // ignore
+  };
+
+  return () => {
+    try {
+      es.removeEventListener("state", handler);
+      es.close();
+    } catch {
+      // ignore
+    }
+  };
+}
+
+// ===== LOCAL CACHE (fallback) =====
 const STORAGE_KEY = "sleep_tasks_v1";
 const THEME_MODE_KEY = "ui_theme_mode_v1";
 
@@ -151,7 +258,7 @@ function loadState() {
       .map((t) => ({
         id: typeof t.id === "string" ? t.id : safeRandomId(),
         title: typeof t.title === "string" ? t.title : "",
-        plannedMin: clampInt(t.plannedMin, { min: 0, max: 10_000 }),
+        plannedMin: clampInt(t.plannedMin, { min: 1, max: 10_000 }),
         actualMin:
           t.actualMin === null || t.actualMin === undefined
             ? null
@@ -166,7 +273,10 @@ function loadState() {
       }))
       .filter((t) => t.title.trim().length > 0);
 
-    return { bedtime, tasks: normalizedTasks };
+    const updatedAt =
+      typeof parsed.updatedAt === "number" && Number.isFinite(parsed.updatedAt) ? parsed.updatedAt : Date.now();
+
+    return { bedtime, tasks: normalizedTasks, updatedAt };
   } catch {
     return null;
   }
@@ -186,7 +296,7 @@ function normalizeSharedState(incoming) {
     .map((t) => ({
       id: typeof t.id === "string" ? t.id : safeRandomId(),
       title: typeof t.title === "string" ? t.title : "",
-      plannedMin: clampInt(t.plannedMin, { min: 0, max: 10_000 }),
+      plannedMin: clampInt(t.plannedMin, { min: 1, max: 10_000 }),
       actualMin:
         t.actualMin === null || t.actualMin === undefined
           ? null
@@ -208,6 +318,7 @@ function saveState({ bedtime, tasks, updatedAt }) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ bedtime, tasks, updatedAt }));
 }
 
+// ===== REDUCER =====
 function reducer(state, action) {
   switch (action.type) {
     case "init":
@@ -250,7 +361,9 @@ function reducer(state, action) {
         // 1) actualMin (если уже появился из таймера)
         // 2) иначе plannedMin
         const nextActual = nextDone
-          ? (nt.actualMin === null || nt.actualMin === undefined ? nt.plannedMin : nt.actualMin)
+          ? nt.actualMin === null || nt.actualMin === undefined
+            ? nt.plannedMin
+            : nt.actualMin
           : nt.actualMin;
 
         return {
@@ -312,6 +425,7 @@ function reducer(state, action) {
   }
 }
 
+// ===== DIALOG =====
 function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
   const isEdit = mode === "edit";
 
@@ -362,7 +476,7 @@ function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
     onSubmit({
       ...base,
       title: title.trim(),
-      plannedMin: clampInt(plannedMin, { min: 0, max: 10_000 }),
+      plannedMin: clampInt(plannedMin, { min: 1, max: 10_000 }),
       done: Boolean(done),
       actualMin: finalActual,
 
@@ -417,9 +531,7 @@ function TaskDialog({ open, mode, initialTask, onCancel, onSubmit }) {
             onBlur={() => setTouched(true)}
             disabled={!done}
             error={touched && !actualOk}
-            helperText={
-              done ? "Если оставить пустым — возьмём план как факт" : "Факт можно заполнить позже при завершении"
-            }
+            helperText={done ? "Если оставить пустым — возьмём план как факт" : "Факт можно заполнить позже при завершении"}
             fullWidth
           />
         </Stack>
@@ -512,6 +624,7 @@ export default function App() {
   const [dialogMode, setDialogMode] = useState("create"); // create | edit
   const [editingTask, setEditingTask] = useState(null);
 
+  // INIT: load from server; fallback local cache
   useEffect(() => {
     let mounted = true;
 
@@ -535,6 +648,7 @@ export default function App() {
 
         if (local) {
           const normalized = normalizeSharedState(local);
+
           applyingRemoteRef.current = true;
           lastServerUpdatedAtRef.current = normalized.updatedAt;
           dispatch({ type: "init", payload: normalized });
@@ -550,6 +664,7 @@ export default function App() {
     };
   }, []);
 
+  // SSE subscribe
   useEffect(() => {
     const disconnect = connectSharedState((serverState) => {
       const normalized = normalizeSharedState(serverState);
@@ -565,6 +680,7 @@ export default function App() {
     return disconnect;
   }, []);
 
+  // PUSH changes to server
   useEffect(() => {
     // локальный кэш
     saveState(state);
@@ -581,10 +697,44 @@ export default function App() {
     // если мы уже на этой версии сервера — не отправляем
     if (state.updatedAt === lastServerUpdatedAtRef.current) return;
 
-    // помечаем, что мы отправляем эту версию
-    lastServerUpdatedAtRef.current = state.updatedAt;
+    const prevServerUpdatedAt = lastServerUpdatedAtRef.current;
+    const outgoingUpdatedAt = state.updatedAt;
 
-    saveSharedState(state).catch(console.error);
+    // оптимистично помечаем (чтобы не флудить запросами на каждый render)
+    lastServerUpdatedAtRef.current = outgoingUpdatedAt;
+
+    saveSharedState(state)
+      .then((saved) => {
+        const normalized = normalizeSharedState(saved);
+        // сохраняем подтверждённую сервером версию
+        lastServerUpdatedAtRef.current = normalized.updatedAt;
+
+        // при желании можно "подровнять" локальное состояние тем, что вернул сервер,
+        // но обычно это тот же updatedAt и те же задачи.
+        saveState(normalized);
+      })
+      .catch((err) => {
+        if (err instanceof SaveConflictError) {
+          const current = err.currentState;
+          if (current && typeof current === "object") {
+            const normalized = normalizeSharedState(current);
+
+            applyingRemoteRef.current = true;
+            lastServerUpdatedAtRef.current = normalized.updatedAt;
+            dispatch({ type: "init", payload: normalized });
+            applyingRemoteRef.current = false;
+
+            saveState(normalized);
+            return;
+          }
+        }
+
+        // если сеть упала/500/etc — откатываем "оптимистичную" метку
+        lastServerUpdatedAtRef.current = prevServerUpdatedAt;
+
+        // логируем, локально всё равно сохранено
+        console.error(err);
+      });
   }, [state]);
 
   // timer tick
@@ -689,7 +839,11 @@ export default function App() {
   }
 
   function hardReset() {
-    localStorage.removeItem(STORAGE_KEY);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
     dispatch({ type: "resetAll" });
   }
 
@@ -761,7 +915,6 @@ export default function App() {
           >
             Добавить задачу
           </Button>
-
         </Toolbar>
       </AppBar>
 
@@ -772,9 +925,7 @@ export default function App() {
               <Stack direction="row" spacing={1} alignItems="center">
                 <AccessTimeIcon />
 
-                <Typography sx={{ fontWeight: 640 }}>
-                  Завершаю в:
-                </Typography>
+                <Typography sx={{ fontWeight: 640 }}>Завершаю в:</Typography>
 
                 <TextField
                   type="time"
@@ -798,7 +949,6 @@ export default function App() {
               )}
             </Stack>
 
-
             {warningActualMissingDone ? (
               <Alert severity="warning" sx={{ mt: 2 }}>
                 Есть выполненные задачи без фактического времени — расчёт может быть неточным.
@@ -811,16 +961,10 @@ export default function App() {
               <Typography sx={{ fontWeight: 640 }}>Таймер (по формуле)</Typography>
 
               {!bedtimeValid ? (
-                <Alert severity="error">
-                  Укажи корректное время “Завершаю в:” иначе таймер не считается.
-                </Alert>
+                <Alert severity="error">Укажи корректное время “Завершаю в:” иначе таймер не считается.</Alert>
               ) : (
                 <>
-                  <Stack
-                    direction={{ xs: "column", md: "row" }}
-                    spacing={2}
-                    alignItems={{ xs: "stretch", md: "center" }}
-                  >
+                  <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
                     <Box sx={{ flex: 1 }}>
                       <Typography sx={{ opacity: 0.8, fontSize: 13 }}>Остаток буфера до завершения:</Typography>
 
@@ -942,9 +1086,7 @@ export default function App() {
                               t.actualMin
                             )}
 
-                            {factMissing ? (
-                              <Typography sx={{ color: "warning.main", fontSize: 12 }}>факта нет</Typography>
-                            ) : null}
+                            {factMissing ? <Typography sx={{ color: "warning.main", fontSize: 12 }}>факта нет</Typography> : null}
                           </TableCell>
 
                           <TableCell align="left">
@@ -1010,13 +1152,7 @@ export default function App() {
         </Stack>
       </Box>
 
-      <TaskDialog
-        open={dialogOpen}
-        mode={dialogMode}
-        initialTask={editingTask}
-        onCancel={closeDialog}
-        onSubmit={submitTask}
-      />
+      <TaskDialog open={dialogOpen} mode={dialogMode} initialTask={editingTask} onCancel={closeDialog} onSubmit={submitTask} />
     </ThemeProvider>
   );
 }
