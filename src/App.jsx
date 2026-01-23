@@ -44,10 +44,8 @@ import Brightness7Icon from "@mui/icons-material/Brightness7";
 import SettingsBrightnessIcon from "@mui/icons-material/SettingsBrightness";
 
 // ===== BACKEND API =====
-// Если фронт и бэк на разных origin/портах:
-// - либо настрой Vite proxy для "/api" -> "http://localhost:8080"
-// - либо поставь API_BASE = "http://localhost:8080"
-const API_BASE = "http://localhost:8080";
+// По умолчанию ходим в локальный backend, но даём переопределить через Vite env.
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
 
 async function safeReadText(res) {
   try {
