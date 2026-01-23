@@ -47,6 +47,7 @@ import SaveIcon from "@mui/icons-material/Save";
 // ===== BACKEND API =====
 // По умолчанию ходим в локальный backend, но даём переопределить через Vite env.
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
+const WS_BASE = import.meta.env.VITE_WS_BASE || API_BASE.replace(/^http/, "ws");
 
 async function safeReadText(res) {
   try {
@@ -65,7 +66,7 @@ async function safeReadJson(res) {
 }
 
 async function loadSharedState() {
-  const res = await fetch(`${API_BASE}/api/v1/state`, {
+  const res = await fetch(`${API_BASE}/state`, {
     method: "GET",
     headers: { Accept: "application/json" },
   });
@@ -83,17 +84,9 @@ async function loadSharedState() {
   return json;
 }
 
-class SaveConflictError extends Error {
-  constructor(message, currentState) {
-    super(message);
-    this.name = "SaveConflictError";
-    this.currentState = currentState;
-  }
-}
-
 async function saveSharedState(state) {
-  const res = await fetch(`${API_BASE}/api/v1/state`, {
-    method: "PUT",
+  const res = await fetch(`${API_BASE}/state`, {
+    method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -101,49 +94,33 @@ async function saveSharedState(state) {
     body: JSON.stringify(state),
   });
 
-  if (res.status === 409) {
-    const body = await safeReadJson(res);
-    const current = body && typeof body === "object" ? body.currentState : null;
-    throw new SaveConflictError("State conflict (409): incoming state is stale", current);
-  }
-
   if (!res.ok) {
     const txt = await safeReadText(res);
     throw new Error(`saveSharedState failed: ${res.status} ${txt}`);
   }
-
-  const json = await safeReadJson(res);
-  if (!json || typeof json !== "object") {
-    throw new Error("saveSharedState failed: invalid JSON");
-  }
-
-  return json;
+  return true;
 }
 
 function connectSharedState(onState) {
-  const es = new EventSource(`${API_BASE}/api/v1/state/stream`);
+  const ws = new WebSocket(WS_BASE);
 
   const handler = (ev) => {
     try {
       const parsed = JSON.parse(ev.data);
-      onState(parsed);
+      if (parsed?.type === "state") {
+        onState(parsed.payload);
+      }
     } catch {
       // ignore broken event
     }
   };
 
-  es.addEventListener("state", handler);
-
-  // EventSource сам пытается реконнектиться.
-  // Можно добавить логирование ошибок, но UI обычно не должен дёргаться.
-  es.onerror = () => {
-    // ignore
-  };
+  ws.addEventListener("message", handler);
 
   return () => {
     try {
-      es.removeEventListener("state", handler);
-      es.close();
+      ws.removeEventListener("message", handler);
+      ws.close();
     } catch {
       // ignore
     }
@@ -822,30 +799,14 @@ export default function App() {
     lastServerUpdatedAtRef.current = state.updatedAt;
 
     try {
-      const saved = await saveSharedState(state);
-      const normalized = normalizeSharedState(saved);
+      await saveSharedState(state);
+      const fresh = await loadSharedState();
+      const normalized = normalizeSharedState(fresh);
       lastServerUpdatedAtRef.current = normalized.updatedAt;
       saveState(normalized);
       setLastSavedAt(Date.now());
       setSaveStatus("saved");
     } catch (err) {
-      if (err instanceof SaveConflictError) {
-        const current = err.currentState;
-        if (current && typeof current === "object") {
-          const normalized = normalizeSharedState(current);
-
-          applyingRemoteRef.current = true;
-          lastServerUpdatedAtRef.current = normalized.updatedAt;
-          dispatch({ type: "init", payload: normalized });
-          applyingRemoteRef.current = false;
-
-          saveState(normalized);
-          setSaveError("Конфликт сохранения: загрузили актуальную версию с сервера.");
-          setSaveStatus("error");
-          return;
-        }
-      }
-
       lastServerUpdatedAtRef.current = prevServerUpdatedAt;
       setSaveError(err instanceof Error ? err.message : "Не удалось сохранить задачи.");
       setSaveStatus("error");
