@@ -46,7 +46,9 @@ import SaveIcon from "@mui/icons-material/Save";
 
 // ===== BACKEND API =====
 // По умолчанию ходим в локальный backend, но даём переопределить через Vite env.
-const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
+const DEFAULT_HOST =
+  typeof window !== "undefined" && window.location?.hostname ? window.location.hostname : "localhost";
+const API_BASE = import.meta.env.VITE_API_BASE || `http://${DEFAULT_HOST}:3001`;
 const WS_BASE = import.meta.env.VITE_WS_BASE || API_BASE.replace(/^http/, "ws");
 
 async function safeReadText(res) {
@@ -85,6 +87,7 @@ async function loadSharedState() {
 }
 
 async function saveSharedState(state) {
+  console.log("Saving state to backend:", `${API_BASE}/state`, state);
   const res = await fetch(`${API_BASE}/state`, {
     method: "POST",
     headers: {
