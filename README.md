@@ -1,8 +1,14 @@
-To run
+## Запуск
 
-```md
-Go to root, then run:
+### В Docker (frontend + backend + postgres)
+
+```bash
+docker compose up --build
 ```
+
+Фронтенд будет доступен на `http://localhost:5173`, backend — на `http://localhost:3001`.
+
+### Локально (без Docker)
 
 ```bash
 npm i
@@ -13,10 +19,6 @@ npm run dev -- --host
 ## Backend (Spring + Postgres)
 
 The backend replaces `sync-server.js` and provides the same `/state` REST and WebSocket interface on port `3001`.
-
-```bash
-docker compose up --build
-```
 
 ---
 Это таймер времени для планирования задач и наглядного представления сколько свободного времени еще осталось, прежде чем пойти ко сну и/или завершить рабочий день.

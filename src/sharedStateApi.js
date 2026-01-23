@@ -1,6 +1,9 @@
-const PC_IP = "192.168.0.102"; // твой IPv4
-const API_BASE = `http://${PC_IP}:3001`;
-const WS_URL = `ws://${PC_IP}:3001`;
+const API_BASE =
+  import.meta.env.VITE_API_BASE ||
+  `http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:3001`;
+const WS_URL =
+  import.meta.env.VITE_WS_BASE ||
+  `ws://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:3001`;
 
 export async function loadSharedState() {
   const res = await fetch(`${API_BASE}/state`);
