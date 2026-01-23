@@ -85,6 +85,7 @@ async function loadSharedState() {
 }
 
 async function saveSharedState(state) {
+  console.log("Saving state to backend:", `${API_BASE}/state`, state);
   const res = await fetch(`${API_BASE}/state`, {
     method: "POST",
     headers: {
