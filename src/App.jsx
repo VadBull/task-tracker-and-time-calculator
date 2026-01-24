@@ -43,7 +43,8 @@ import BedtimeIcon from "@mui/icons-material/Bedtime";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import SaveIcon from "@mui/icons-material/Save";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
 
 // ===== BACKEND API =====
 // По умолчанию ходим в локальный backend, но даём переопределить через Vite env.
@@ -133,6 +134,7 @@ function connectSharedState(onState) {
 
 // ===== LOCAL CACHE (fallback) =====
 const STORAGE_KEY = "sleep_tasks_v1";
+const THEME_MODE_KEY = "ui_theme_mode_v2";
 
 function safeRandomId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
@@ -534,135 +536,157 @@ const DEFAULT_STATE = {
 };
 
 export default function App() {
-  // ===== THEME (light / neo-brutalism) =====
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode: "light",
-          primary: { main: "#7AA2F7" },
-          secondary: { main: "#E09F6B" },
-          success: { main: "#7ED7B5" },
-          warning: { main: "#F4D06F" },
-          background: {
-            default: "#F6F2E8",
-            paper: "#FFFFFF",
-          },
-          text: {
-            primary: "#121212",
-            secondary: "#4B4B4B",
-          },
+  const [themeMode, setThemeMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem(THEME_MODE_KEY);
+      return saved === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_MODE_KEY, themeMode);
+    } catch {
+      // ignore
+    }
+    document.body.classList.toggle("dark", themeMode === "dark");
+  }, [themeMode]);
+
+  function toggleThemeMode() {
+    setThemeMode((prev) => (prev === "dark" ? "light" : "dark"));
+  }
+
+  // ===== THEME (light / warm dark) =====
+  const theme = useMemo(() => {
+    const isDark = themeMode === "dark";
+
+    return createTheme({
+      palette: {
+        mode: isDark ? "dark" : "light",
+        primary: { main: isDark ? "#E7C55A" : "#F4D06F" },
+        secondary: { main: isDark ? "#6D8EEA" : "#7AA2F7" },
+        success: { main: isDark ? "#62C7A2" : "#7ED7B5" },
+        warning: { main: isDark ? "#D08C5E" : "#E09F6B" },
+        background: {
+          default: isDark ? "#0F1012" : "#F6F2E8",
+          paper: isDark ? "#17181C" : "#FFFFFF",
         },
-        shape: { borderRadius: 14 },
-        typography: {
-          fontFamily: '"Inter", "Manrope", system-ui, -apple-system, Segoe UI, sans-serif',
-          h1: {
-            fontFamily: '"Space Grotesk", "Unbounded", sans-serif',
-            fontWeight: 800,
-            fontSize: "clamp(2.75rem, 4vw, 3.75rem)",
-            lineHeight: 1.05,
-          },
-          h2: {
-            fontFamily: '"Space Grotesk", "Unbounded", sans-serif',
-            fontWeight: 800,
-            fontSize: "clamp(2rem, 3vw, 2.6rem)",
-            lineHeight: 1.1,
-          },
-          h3: {
-            fontFamily: '"Space Grotesk", "Unbounded", sans-serif',
-            fontWeight: 700,
-            fontSize: "clamp(1.4rem, 2.2vw, 1.75rem)",
-            lineHeight: 1.2,
-          },
-          subtitle1: { fontWeight: 600 },
-          body1: { fontSize: 16 },
-          body2: { fontSize: 14 },
+        text: {
+          primary: isDark ? "#F4F1E8" : "#121212",
+          secondary: isDark ? "#B8B3A8" : "#4B4B4B",
         },
-        components: {
-          MuiAppBar: {
-            styleOverrides: {
-              root: {
-                backgroundImage: "none",
-                borderBottom: "3px solid #121212",
-              },
-            },
-          },
-          MuiPaper: {
-            styleOverrides: {
-              root: {
-                border: "3px solid #121212",
-                boxShadow: "6px 6px 0 #121212",
-              },
-            },
-          },
-          MuiButton: {
-            styleOverrides: {
-              root: {
-                borderRadius: 12,
-                border: "3px solid #121212",
-                boxShadow: "6px 6px 0 #121212",
-                textTransform: "none",
-                fontWeight: 700,
-                transition: "all 180ms ease",
-                "&:hover": {
-                  boxShadow: "3px 3px 0 #121212",
-                  transform: "translate(-1px, -1px)",
-                },
-                "&:active": {
-                  boxShadow: "1px 1px 0 #121212",
-                  transform: "translate(2px, 2px)",
-                },
-              },
-              outlined: {
-                backgroundColor: "#FFFFFF",
-              },
-              contained: {
-                color: "#121212",
-              },
-            },
-          },
-          MuiChip: {
-            styleOverrides: {
-              root: {
-                border: "2px solid #121212",
-                fontWeight: 700,
-              },
-            },
-          },
-          MuiOutlinedInput: {
-            styleOverrides: {
-              root: {
-                borderRadius: 12,
-                backgroundColor: "#FFFFFF",
-                "& .MuiOutlinedInput-notchedOutline": {
-                  border: "3px solid #121212",
-                },
-                "&:hover .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#121212",
-                },
-                "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "#121212",
-                },
-                "&.Mui-focused": {
-                  boxShadow: "0 0 0 3px rgba(122, 162, 247, 0.3)",
-                },
-              },
-              input: {
-                padding: "12px 14px",
-              },
-            },
-          },
-          MuiTableCell: {
-            styleOverrides: {
-              head: {
-                fontWeight: 700,
-              },
+      },
+      shape: { borderRadius: 14 },
+      typography: {
+        fontFamily: '"Inter", "Manrope", system-ui, -apple-system, Segoe UI, sans-serif',
+        h1: {
+          fontFamily: '"Space Grotesk", "Unbounded", sans-serif',
+          fontWeight: 800,
+          fontSize: "clamp(2.75rem, 4vw, 3.75rem)",
+          lineHeight: 1.05,
+        },
+        h2: {
+          fontFamily: '"Space Grotesk", "Unbounded", sans-serif',
+          fontWeight: 800,
+          fontSize: "clamp(2rem, 3vw, 2.6rem)",
+          lineHeight: 1.1,
+        },
+        h3: {
+          fontFamily: '"Space Grotesk", "Unbounded", sans-serif',
+          fontWeight: 700,
+          fontSize: "clamp(1.4rem, 2.2vw, 1.75rem)",
+          lineHeight: 1.2,
+        },
+        subtitle1: { fontWeight: 600 },
+        body1: { fontSize: 16 },
+        body2: { fontSize: 14 },
+      },
+      components: {
+        MuiAppBar: {
+          styleOverrides: {
+            root: {
+              backgroundImage: "none",
+              borderBottom: "3px solid var(--border-color)",
             },
           },
         },
-      }),
-    [],
-  );
+        MuiPaper: {
+          styleOverrides: {
+            root: {
+              border: "3px solid var(--border-color)",
+              boxShadow: "var(--shadow-strong)",
+            },
+          },
+        },
+        MuiButton: {
+          styleOverrides: {
+            root: {
+              borderRadius: 12,
+              border: "3px solid var(--border-color)",
+              boxShadow: "var(--shadow-strong)",
+              textTransform: "none",
+              fontWeight: 700,
+              transition: "all 180ms ease",
+              "&:hover": {
+                boxShadow: "var(--shadow-hover)",
+                transform: "translate(-1px, -1px)",
+              },
+              "&:active": {
+                boxShadow: "var(--shadow-active)",
+                transform: "translate(2px, 2px)",
+              },
+            },
+            outlined: {
+              backgroundColor: "var(--surface)",
+            },
+            contained: {
+              color: "#121212",
+            },
+          },
+        },
+        MuiChip: {
+          styleOverrides: {
+            root: {
+              border: "2px solid var(--border-color)",
+              fontWeight: 700,
+            },
+          },
+        },
+        MuiOutlinedInput: {
+          styleOverrides: {
+            root: {
+              borderRadius: 12,
+              backgroundColor: "var(--surface)",
+              "& .MuiOutlinedInput-notchedOutline": {
+                border: "3px solid var(--border-color)",
+              },
+              "&:hover .MuiOutlinedInput-notchedOutline": {
+                borderColor: "var(--border-color)",
+              },
+              "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                borderColor: "var(--border-color)",
+              },
+              "&.Mui-focused": {
+                boxShadow: isDark ? "0 0 0 3px rgba(231, 197, 90, 0.3)" : "0 0 0 3px rgba(122, 162, 247, 0.3)",
+              },
+            },
+            input: {
+              padding: "12px 14px",
+            },
+          },
+        },
+        MuiTableCell: {
+          styleOverrides: {
+            head: {
+              fontWeight: 700,
+            },
+          },
+        },
+      },
+    });
+  }, [themeMode]);
 
   // ===== APP STATE =====
   const [state, dispatch] = useReducer(reducer, DEFAULT_STATE);
@@ -907,19 +931,19 @@ export default function App() {
       title: "Собери план",
       body: "Разложи задачи по минутам и сразу увидишь реальную загрузку.",
       badge: "Planning",
-      color: "#F4D06F",
+      color: "var(--accent-a1)",
     },
     {
       title: "Держи фокус",
       body: "Запускай таймеры по задачам и сравнивай план с фактом.",
       badge: "Focus",
-      color: "#7ED7B5",
+      color: "var(--accent-a2)",
     },
     {
       title: "Синхронизация",
       body: "Сохраняй состояние и делись прогрессом с командой.",
       badge: "Sync",
-      color: "#BFA7F2",
+      color: "var(--accent-a3)",
     },
   ];
 
@@ -937,19 +961,16 @@ export default function App() {
       title: "Solo",
       price: "Бесплатно",
       description: "Личный планер с таймерами и базовой статистикой.",
-      accent: "#FFFFFF",
     },
     {
       title: "Team",
       price: "₽490/мес",
       description: "Общий план, синхронизация и статус выполнения.",
-      accent: "#7AA2F7",
     },
     {
       title: "Studio",
       price: "₽990/мес",
       description: "Расширенная аналитика и совместные рабочие блоки.",
-      accent: "#F4D06F",
     },
   ];
 
@@ -990,6 +1011,12 @@ export default function App() {
           </Stack>
 
           <Box sx={{ flex: 1 }} />
+
+          <Tooltip title={themeMode === "dark" ? "Светлая тема" : "Тёмная тема"}>
+            <IconButton onClick={toggleThemeMode} className="icon-button">
+              {themeMode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
+            </IconButton>
+          </Tooltip>
 
           <Tooltip title="Сбросить всё (сон + задачи)">
             <IconButton onClick={hardReset} className="icon-button">
@@ -1045,13 +1072,16 @@ export default function App() {
                   </Button>
                 </Stack>
                 <Stack direction="row" spacing={1} sx={{ mt: 3, flexWrap: "wrap" }}>
-                  <Chip label={`Всего задач: ${state.tasks.length}`} sx={{ bgcolor: "#F4D06F" }} />
-                  <Chip label={`План минут: ${sums.totalWorkMin}`} sx={{ bgcolor: "#7ED7B5" }} />
-                  <Chip label={`Буфер: ${bufferMs === null ? "--:--:--" : formatDurationMs(bufferMs)}`} sx={{ bgcolor: "#BFA7F2" }} />
+                  <Chip label={`Всего задач: ${state.tasks.length}`} sx={{ bgcolor: "var(--accent-a1)", color: "#121212" }} />
+                  <Chip label={`План минут: ${sums.totalWorkMin}`} sx={{ bgcolor: "var(--accent-a3)", color: "#121212" }} />
+                  <Chip
+                    label={`Буфер: ${bufferMs === null ? "--:--:--" : formatDurationMs(bufferMs)}`}
+                    sx={{ bgcolor: "var(--accent-a5)", color: "#121212" }}
+                  />
                 </Stack>
               </Box>
 
-              <Paper className="hero-card" sx={{ flex: 1, p: 3, backgroundColor: "#FFFFFF" }}>
+              <Paper className="hero-card" sx={{ flex: 1, p: 3, backgroundColor: "background.paper" }}>
                 <Stack spacing={2}>
                   <Typography variant="h3">Сегодняшний фокус</Typography>
                   <Typography color="text.secondary">
@@ -1060,9 +1090,9 @@ export default function App() {
                   <Stack spacing={1}>
                     <Chip
                       label={timeUntilBedMs === null ? "До завершения: —" : `До завершения: ${formatDurationMs(timeUntilBedMs)}`}
-                      sx={{ bgcolor: "#F4D06F" }}
+                      sx={{ bgcolor: "var(--accent-a1)", color: "#121212" }}
                     />
-                    <Chip label={`Минут работы (всего): ${sums.totalWorkMin}`} sx={{ bgcolor: "#7AA2F7" }} />
+                    <Chip label={`Минут работы (всего): ${sums.totalWorkMin}`} sx={{ bgcolor: "var(--accent-a2)", color: "#121212" }} />
                     <Chip
                       label={
                         bedtimeDateMs === null
@@ -1072,7 +1102,7 @@ export default function App() {
                               minute: "2-digit",
                             })}`
                       }
-                      sx={{ bgcolor: "#7ED7B5" }}
+                      sx={{ bgcolor: "var(--accent-a3)", color: "#121212" }}
                     />
                   </Stack>
                   <Box className="hero-metric">
@@ -1095,8 +1125,8 @@ export default function App() {
               <Typography variant="h2">Функции, которые держат ритм.</Typography>
               <Box className="grid-3">
                 {featureCards.map((card) => (
-                  <Paper key={card.title} sx={{ p: 3, bgcolor: card.color }}>
-                    <Chip label={card.badge} sx={{ bgcolor: "#FFFFFF" }} />
+                  <Paper key={card.title} sx={{ p: 3, bgcolor: "background.paper" }}>
+                    <Chip label={card.badge} sx={{ bgcolor: card.color, color: "#121212" }} />
                     <Typography variant="h3" sx={{ mt: 2 }}>
                       {card.title}
                     </Typography>
@@ -1195,9 +1225,9 @@ export default function App() {
                             label={
                               timeUntilBedMs === null ? "До завершения: —" : `До завершения: ${formatDurationMs(timeUntilBedMs)}`
                             }
-                            sx={{ bgcolor: "#F4D06F" }}
+                            sx={{ bgcolor: "var(--accent-a1)", color: "#121212" }}
                           />
-                          <Chip label={`Минут работы (всего): ${sums.totalWorkMin}`} sx={{ bgcolor: "#7AA2F7" }} />
+                          <Chip label={`Минут работы (всего): ${sums.totalWorkMin}`} sx={{ bgcolor: "var(--accent-a2)", color: "#121212" }} />
                           <Chip
                             label={
                               bedtimeDateMs === null
@@ -1207,7 +1237,10 @@ export default function App() {
                                     minute: "2-digit",
                                   })}`
                             }
-                            sx={{ bgcolor: completionAtMs > (bedtimeDateMs ?? 0) ? "#E09F6B" : "#7ED7B5" }}
+                            sx={{
+                              bgcolor: completionAtMs > (bedtimeDateMs ?? 0) ? "var(--accent-a4)" : "var(--accent-a3)",
+                              color: "#121212",
+                            }}
                           />
                         </Stack>
                       </Stack>
@@ -1222,9 +1255,9 @@ export default function App() {
                           sx={{
                             height: 12,
                             borderRadius: 999,
-                            bgcolor: "#FFFFFF",
-                            border: "2px solid #121212",
-                            boxShadow: "3px 3px 0 #121212",
+                            bgcolor: "var(--surface-2)",
+                            border: "2px solid var(--border-color)",
+                            boxShadow: "var(--shadow-hover)",
                           }}
                         />
                         <Typography sx={{ opacity: 0.7, fontSize: 12, mt: 0.5 }}>
@@ -1370,13 +1403,20 @@ export default function App() {
               <Typography variant="h2">Шоукейс дня</Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap">
                 {["Все", "Фокус", "В процессе", "Готово"].map((label) => (
-                  <Chip key={label} label={label} sx={{ bgcolor: "#FFFFFF" }} />
+                  <Chip
+                    key={label}
+                    label={label}
+                    sx={{
+                      bgcolor: label === "Все" ? "var(--accent-a1)" : "var(--accent-a2)",
+                      color: "#121212",
+                    }}
+                  />
                 ))}
               </Stack>
               <Box className="grid-3">
                 {showcaseCards.map((card) => (
                   <Paper key={card.title} sx={{ p: 3 }}>
-                    <Chip label={card.tag} sx={{ bgcolor: "#7ED7B5" }} />
+                    <Chip label={card.tag} sx={{ bgcolor: "var(--accent-a3)", color: "#121212" }} />
                     <Typography variant="h3" sx={{ mt: 2 }}>
                       {card.title}
                     </Typography>
@@ -1398,14 +1438,17 @@ export default function App() {
                     key={plan.title}
                     sx={{
                       p: 3,
-                      bgcolor: plan.accent,
+                      bgcolor: "background.paper",
                       transform: idx === 1 ? "translateY(-8px)" : "none",
                     }}
                   >
                     <Typography variant="h3">{plan.title}</Typography>
                     <Typography sx={{ fontSize: 24, fontWeight: 800, mt: 1 }}>{plan.price}</Typography>
                     <Typography sx={{ color: "text.secondary", mt: 1 }}>{plan.description}</Typography>
-                    <Button variant="contained" sx={{ mt: 2 }}>
+                    {idx === 1 ? (
+                      <Chip label="Популярный" sx={{ mt: 2, bgcolor: "var(--accent-a3)", color: "#121212" }} />
+                    ) : null}
+                    <Button variant="contained" sx={{ mt: 2, bgcolor: "var(--accent-a1)" }}>
                       Выбрать
                     </Button>
                   </Paper>
@@ -1421,7 +1464,7 @@ export default function App() {
               <Typography variant="h2">FAQ</Typography>
               {faqItems.map((item) => (
                 <Accordion key={item.question} className="neo-accordion">
-                  <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <AccordionSummary expandIcon={<Box className="faq-icon">+</Box>}>
                     <Typography variant="h3">{item.question}</Typography>
                   </AccordionSummary>
                   <AccordionDetails>

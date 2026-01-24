@@ -17,15 +17,15 @@
   align-items: center;
   gap: 8px;
   padding: 6px 14px;
-  background: #f4d06f;
-  border: 3px solid #121212;
-  box-shadow: 4px 4px 0 #121212;
+  background: var(--accent-a1);
+  border: 3px solid var(--border-color);
+  box-shadow: var(--shadow-hover);
   border-radius: 14px;
 }
 
 .nav-link {
   text-decoration: none;
-  color: #121212;
+  color: var(--ink);
   font-weight: 600;
   padding: 6px 10px;
   border-radius: 10px;
@@ -34,26 +34,26 @@
 }
 
 .nav-link:hover {
-  border-color: #121212;
-  background: #ffffff;
+  border-color: var(--border-color);
+  background: var(--surface);
 }
 
 .icon-button {
-  border: 2px solid #121212;
+  border: 2px solid var(--border-color);
   border-radius: 10px;
-  background: #ffffff;
-  box-shadow: 4px 4px 0 #121212;
+  background: var(--surface);
+  box-shadow: var(--shadow-hover);
 }
 
 .hero-card {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .hero-metric {
   padding: 16px;
-  border: 3px solid #121212;
+  border: 3px solid var(--border-color);
   border-radius: 14px;
-  background: #f6f2e8;
+  background: var(--surface-2);
 }
 
 .hero-metric-value {
@@ -69,16 +69,17 @@
 }
 
 .statement-section {
-  background: #ffffff;
+  background: var(--accent-a5);
   position: relative;
   overflow: hidden;
+  color: #121212;
 }
 
 .statement-section::before {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(#121212 1px, transparent 1px);
+  background-image: radial-gradient(var(--ink) 1px, transparent 1px);
   background-size: 18px 18px;
   opacity: 0.08;
   pointer-events: none;
@@ -90,24 +91,48 @@
 }
 
 .neo-accordion {
-  border: 3px solid #121212;
-  box-shadow: 6px 6px 0 #121212;
+  border: 3px solid var(--border-color);
+  box-shadow: var(--shadow-strong);
   border-radius: 14px !important;
   overflow: hidden;
+  background: var(--surface-2);
+}
+
+.neo-accordion .MuiAccordionSummary-root {
+  background: var(--surface-2);
+}
+
+.neo-accordion .MuiAccordionDetails-root {
+  background: var(--surface);
+}
+
+.faq-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  background: var(--accent-a1);
+  color: #121212;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-hover);
 }
 
 .footer-section {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .footer-link {
   text-decoration: none;
-  color: #4b4b4b;
+  color: var(--muted);
   font-weight: 600;
 }
 
 .footer-link:hover {
-  color: #121212;
+  color: var(--ink);
 }
 
 @media (max-width: 900px) {
