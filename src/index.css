@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap");
+
 html,
 body,
 #root {
@@ -6,4 +8,71 @@ body,
 
 body {
   margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Inter", system-ui, -apple-system, Segoe UI, sans-serif;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+:root {
+  --bg: #f6f2e8;
+  --surface: #ffffff;
+  --surface-2: #f1eee6;
+  --ink: #121212;
+  --muted: #4b4b4b;
+  --accent-a1: #f4d06f;
+  --accent-a2: #7aa2f7;
+  --accent-a3: #7ed7b5;
+  --accent-a4: #e09f6b;
+  --accent-a5: #bfa7f2;
+  --border-color: #121212;
+  --shadow-strong: 6px 6px 0 #121212;
+  --shadow-hover: 4px 4px 0 #121212;
+  --shadow-active: 2px 2px 0 #121212;
+}
+
+body.dark {
+  --bg: #222428;
+  --surface: #4a4c54;
+  --surface-2: #3a3c43;
+  --ink: #f4f1e8;
+  --muted: #b8b3a8;
+  --accent-a1: #dac95d;
+  --accent-a2: #6d8eea;
+  --accent-a3: #00bf8e;
+  --accent-a4: #d08c5e;
+  --accent-a5: #b49af0;
+  --border-color: #f4f1e8;
+  --shadow-strong: 6px 6px 0 #000000;
+  --shadow-hover: 4px 4px 0 #000000;
+  --shadow-active: 2px 2px 0 #000000;
+}
+
+@layer base {
+  :root {
+    --background: 225 10% 6%;
+    --foreground: 40 33% 94%;
+    --card: 225 10% 10%;
+    --card-foreground: 40 33% 94%;
+    --popover: 225 10% 10%;
+    --popover-foreground: 40 33% 94%;
+    --primary: 43 74% 63%;
+    --primary-foreground: 0 0% 7%;
+    --secondary: 225 9% 14%;
+    --secondary-foreground: 40 33% 94%;
+    --muted: 225 8% 16%;
+    --muted-foreground: 35 10% 72%;
+    --accent: 220 74% 67%;
+    --accent-foreground: 0 0% 7%;
+    --destructive: 0 65% 52%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 40 33% 94%;
+    --input: 40 33% 94%;
+    --ring: 40 33% 94%;
+    --radius: 0.9rem;
+  }
 }
