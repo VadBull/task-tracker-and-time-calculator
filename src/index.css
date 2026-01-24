@@ -36,14 +36,14 @@ body {
 }
 
 body.dark {
-  --bg: #0f1012;
-  --surface: #17181c;
-  --surface-2: #202228;
+  --bg: #222428;
+  --surface: #4a4c54;
+  --surface-2: #3a3c43;
   --ink: #f4f1e8;
   --muted: #b8b3a8;
-  --accent-a1: #e7c55a;
+  --accent-a1: #dac95d;
   --accent-a2: #6d8eea;
-  --accent-a3: #62c7a2;
+  --accent-a3: #00bf8e;
   --accent-a4: #d08c5e;
   --accent-a5: #b49af0;
   --border-color: #f4f1e8;

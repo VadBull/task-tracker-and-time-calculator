@@ -565,13 +565,13 @@ export default function App() {
     return createTheme({
       palette: {
         mode: isDark ? "dark" : "light",
-        primary: { main: isDark ? "#E7C55A" : "#F4D06F" },
+        primary: { main: isDark ? "#DAC95D" : "#F4D06F" },
         secondary: { main: isDark ? "#6D8EEA" : "#7AA2F7" },
-        success: { main: isDark ? "#62C7A2" : "#7ED7B5" },
+        success: { main: isDark ? "#00BF8E" : "#7ED7B5" },
         warning: { main: isDark ? "#D08C5E" : "#E09F6B" },
         background: {
-          default: isDark ? "#0F1012" : "#F6F2E8",
-          paper: isDark ? "#17181C" : "#FFFFFF",
+          default: isDark ? "#222428" : "#F6F2E8",
+          paper: isDark ? "#4A4C54" : "#FFFFFF",
         },
         text: {
           primary: isDark ? "#F4F1E8" : "#121212",
