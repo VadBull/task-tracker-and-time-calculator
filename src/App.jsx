@@ -42,12 +42,14 @@ import StopIcon from "@mui/icons-material/Stop";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import SettingsBrightnessIcon from "@mui/icons-material/SettingsBrightness";
+import SaveIcon from "@mui/icons-material/Save";
 
 // ===== BACKEND API =====
-// Если фронт и бэк на разных origin/портах:
-// - либо настрой Vite proxy для "/api" -> "http://localhost:8080"
-// - либо поставь API_BASE = "http://localhost:8080"
-const API_BASE = "http://localhost:8080";
+// По умолчанию ходим в локальный backend, но даём переопределить через Vite env.
+const DEFAULT_HOST =
+  typeof window !== "undefined" && window.location?.hostname ? window.location.hostname : "localhost";
+const API_BASE = import.meta.env.VITE_API_BASE || `http://${DEFAULT_HOST}:3001`;
+const WS_BASE = import.meta.env.VITE_WS_BASE || API_BASE.replace(/^http/, "ws");
 
 async function safeReadText(res) {
   try {
@@ -66,7 +68,7 @@ async function safeReadJson(res) {
 }
 
 async function loadSharedState() {
-  const res = await fetch(`${API_BASE}/api/v1/state`, {
+  const res = await fetch(`${API_BASE}/state`, {
     method: "GET",
     headers: { Accept: "application/json" },
   });
@@ -84,17 +86,10 @@ async function loadSharedState() {
   return json;
 }
 
-class SaveConflictError extends Error {
-  constructor(message, currentState) {
-    super(message);
-    this.name = "SaveConflictError";
-    this.currentState = currentState;
-  }
-}
-
 async function saveSharedState(state) {
-  const res = await fetch(`${API_BASE}/api/v1/state`, {
-    method: "PUT",
+  console.log("Saving state to backend:", `${API_BASE}/state`, state);
+  const res = await fetch(`${API_BASE}/state`, {
+    method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -102,49 +97,33 @@ async function saveSharedState(state) {
     body: JSON.stringify(state),
   });
 
-  if (res.status === 409) {
-    const body = await safeReadJson(res);
-    const current = body && typeof body === "object" ? body.currentState : null;
-    throw new SaveConflictError("State conflict (409): incoming state is stale", current);
-  }
-
   if (!res.ok) {
     const txt = await safeReadText(res);
     throw new Error(`saveSharedState failed: ${res.status} ${txt}`);
   }
-
-  const json = await safeReadJson(res);
-  if (!json || typeof json !== "object") {
-    throw new Error("saveSharedState failed: invalid JSON");
-  }
-
-  return json;
+  return true;
 }
 
 function connectSharedState(onState) {
-  const es = new EventSource(`${API_BASE}/api/v1/state/stream`);
+  const ws = new WebSocket(WS_BASE);
 
   const handler = (ev) => {
     try {
       const parsed = JSON.parse(ev.data);
-      onState(parsed);
+      if (parsed?.type === "state") {
+        onState(parsed.payload);
+      }
     } catch {
       // ignore broken event
     }
   };
 
-  es.addEventListener("state", handler);
-
-  // EventSource сам пытается реконнектиться.
-  // Можно добавить логирование ошибок, но UI обычно не должен дёргаться.
-  es.onerror = () => {
-    // ignore
-  };
+  ws.addEventListener("message", handler);
 
   return () => {
     try {
-      es.removeEventListener("state", handler);
-      es.close();
+      ws.removeEventListener("message", handler);
+      ws.close();
     } catch {
       // ignore
     }
@@ -623,6 +602,9 @@ export default function App() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState("create"); // create | edit
   const [editingTask, setEditingTask] = useState(null);
+  const [saveStatus, setSaveStatus] = useState("idle"); // idle | saving | saved | error
+  const [saveError, setSaveError] = useState("");
+  const [lastSavedAt, setLastSavedAt] = useState(null);
 
   // INIT: load from server; fallback local cache
   useEffect(() => {
@@ -684,57 +666,6 @@ export default function App() {
   useEffect(() => {
     // локальный кэш
     saveState(state);
-
-    // пока не попытались загрузиться (сервер/локал), не отправляем ничего
-    if (!syncReadyRef.current) return;
-
-    // если это пришло с сервера — не отправляем обратно
-    if (applyingRemoteRef.current) return;
-
-    // если состояние ещё "нулевое" — не отправляем
-    if (typeof state.updatedAt !== "number" || !Number.isFinite(state.updatedAt) || state.updatedAt <= 0) return;
-
-    // если мы уже на этой версии сервера — не отправляем
-    if (state.updatedAt === lastServerUpdatedAtRef.current) return;
-
-    const prevServerUpdatedAt = lastServerUpdatedAtRef.current;
-    const outgoingUpdatedAt = state.updatedAt;
-
-    // оптимистично помечаем (чтобы не флудить запросами на каждый render)
-    lastServerUpdatedAtRef.current = outgoingUpdatedAt;
-
-    saveSharedState(state)
-      .then((saved) => {
-        const normalized = normalizeSharedState(saved);
-        // сохраняем подтверждённую сервером версию
-        lastServerUpdatedAtRef.current = normalized.updatedAt;
-
-        // при желании можно "подровнять" локальное состояние тем, что вернул сервер,
-        // но обычно это тот же updatedAt и те же задачи.
-        saveState(normalized);
-      })
-      .catch((err) => {
-        if (err instanceof SaveConflictError) {
-          const current = err.currentState;
-          if (current && typeof current === "object") {
-            const normalized = normalizeSharedState(current);
-
-            applyingRemoteRef.current = true;
-            lastServerUpdatedAtRef.current = normalized.updatedAt;
-            dispatch({ type: "init", payload: normalized });
-            applyingRemoteRef.current = false;
-
-            saveState(normalized);
-            return;
-          }
-        }
-
-        // если сеть упала/500/etc — откатываем "оптимистичную" метку
-        lastServerUpdatedAtRef.current = prevServerUpdatedAt;
-
-        // логируем, локально всё равно сохранено
-        console.error(err);
-      });
   }, [state]);
 
   // timer tick
@@ -847,6 +778,44 @@ export default function App() {
     dispatch({ type: "resetAll" });
   }
 
+  const isDirty = useMemo(() => {
+    if (!syncReadyRef.current) return false;
+    if (typeof state.updatedAt !== "number" || !Number.isFinite(state.updatedAt) || state.updatedAt <= 0) return false;
+    return state.updatedAt !== lastServerUpdatedAtRef.current;
+  }, [state.updatedAt]);
+
+  useEffect(() => {
+    if (isDirty && saveStatus !== "saving") {
+      setSaveStatus("idle");
+      setSaveError("");
+    }
+  }, [isDirty, saveStatus]);
+
+  async function saveToServer() {
+    if (!syncReadyRef.current) return;
+    if (saveStatus === "saving") return;
+
+    setSaveStatus("saving");
+    setSaveError("");
+
+    const prevServerUpdatedAt = lastServerUpdatedAtRef.current;
+    lastServerUpdatedAtRef.current = state.updatedAt;
+
+    try {
+      await saveSharedState(state);
+      const fresh = await loadSharedState();
+      const normalized = normalizeSharedState(fresh);
+      lastServerUpdatedAtRef.current = normalized.updatedAt;
+      saveState(normalized);
+      setLastSavedAt(Date.now());
+      setSaveStatus("saved");
+    } catch (err) {
+      lastServerUpdatedAtRef.current = prevServerUpdatedAt;
+      setSaveError(err instanceof Error ? err.message : "Не удалось сохранить задачи.");
+      setSaveStatus("error");
+    }
+  }
+
   const warningActualMissingDone = useMemo(() => {
     return state.tasks.some((t) => t.done && (t.actualMin === null || t.actualMin === undefined));
   }, [state.tasks]);
@@ -894,6 +863,15 @@ export default function App() {
           </Tooltip>
 
           <Button
+            variant="outlined"
+            startIcon={<SaveIcon />}
+            onClick={saveToServer}
+            disabled={!isDirty || saveStatus === "saving"}
+          >
+            {saveStatus === "saving" ? "Сохраняю..." : "Сохранить"}
+          </Button>
+
+          <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={openCreate}
@@ -920,6 +898,16 @@ export default function App() {
 
       <Box sx={{ p: 2 }}>
         <Stack spacing={2} sx={{ maxWidth: 1100, mx: "auto" }}>
+          {saveStatus === "error" ? (
+            <Alert severity="error">{saveError || "Не удалось сохранить задачи."}</Alert>
+          ) : null}
+
+          {saveStatus === "saved" && lastSavedAt ? (
+            <Alert severity="success">
+              Сохранено {new Date(lastSavedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </Alert>
+          ) : null}
+
           <Paper sx={{ p: 2 }}>
             <Stack sx={{ flex: 1 }}>
               <Stack direction="row" spacing={1} alignItems="center">
