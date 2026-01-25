@@ -1,15 +1,27 @@
-import { normalizeSharedState, stopTimerFields } from "./logic";
+import { stopTimerFields } from "./logic";
+import { domainToViewModel } from "./mappers";
 
+/**
+ * @typedef {import("./types").PlannerState} PlannerState
+ * @typedef {import("./types").Task} Task
+ */
+
+/** @type {PlannerState} */
 export const DEFAULT_STATE = {
   bedtime: "22:30",
   tasks: [],
   updatedAt: 0,
 };
 
+/**
+ * @param {PlannerState} state
+ * @param {Object} action
+ * @returns {PlannerState}
+ */
 export function taskReducer(state, action) {
   switch (action.type) {
     case "init":
-      return normalizeSharedState(action.payload);
+      return domainToViewModel(action.payload);
 
     case "setBedtime":
       return { ...state, bedtime: action.bedtime, updatedAt: Date.now() };

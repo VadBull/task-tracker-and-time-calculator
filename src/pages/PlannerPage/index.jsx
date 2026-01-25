@@ -31,7 +31,8 @@ import FeatureCard from "../../shared/ui/FeatureCard";
 import ShowcaseCard from "../../shared/ui/ShowcaseCard";
 import PricingCard from "../../shared/ui/PricingCard";
 import { DEFAULT_STATE, taskReducer } from "../../entities/task/model/reducer";
-import { formatDurationMs, normalizeSharedState } from "../../entities/task/model/logic";
+import { formatDurationMs } from "../../entities/task/model/logic";
+import { dtoToDomain } from "../../entities/task/model/mappers";
 import {
   connectSharedState,
   loadSharedState,
@@ -76,7 +77,7 @@ export default function PlannerPage({ themeMode, onToggleTheme }) {
         const remote = await loadSharedState();
         if (!mounted) return;
 
-        const normalized = normalizeSharedState(remote);
+        const normalized = dtoToDomain(remote);
 
         applyingRemoteRef.current = true;
         lastServerUpdatedAtRef.current = normalized.updatedAt;
@@ -90,7 +91,7 @@ export default function PlannerPage({ themeMode, onToggleTheme }) {
         if (!mounted) return;
 
         if (local) {
-          const normalized = normalizeSharedState(local);
+          const normalized = dtoToDomain(local);
 
           applyingRemoteRef.current = true;
           lastServerUpdatedAtRef.current = normalized.updatedAt;
@@ -110,7 +111,7 @@ export default function PlannerPage({ themeMode, onToggleTheme }) {
   // SSE subscribe
   useEffect(() => {
     const disconnect = connectSharedState((serverState) => {
-      const normalized = normalizeSharedState(serverState);
+      const normalized = dtoToDomain(serverState);
 
       applyingRemoteRef.current = true;
       lastServerUpdatedAtRef.current = normalized.updatedAt;
@@ -226,7 +227,7 @@ export default function PlannerPage({ themeMode, onToggleTheme }) {
     try {
       await saveSharedState(state);
       const fresh = await loadSharedState();
-      const normalized = normalizeSharedState(fresh);
+      const normalized = dtoToDomain(fresh);
       lastServerUpdatedAtRef.current = normalized.updatedAt;
       saveState(normalized);
       setLastSavedAt(Date.now());
