@@ -1,90 +1,3 @@
-// ===== BACKEND API =====
-// По умолчанию ходим в локальный backend, но даём переопределить через Vite env.
-const DEFAULT_HOST =
-  typeof window !== "undefined" && window.location?.hostname ? window.location.hostname : "localhost";
-const API_BASE = import.meta.env.VITE_API_BASE || `http://${DEFAULT_HOST}:3001`;
-const WS_BASE = import.meta.env.VITE_WS_BASE || API_BASE.replace(/^http/, "ws");
-
-const STORAGE_KEY = "sleep_tasks_v1";
-
-async function safeReadText(res) {
-  try {
-    return await res.text();
-  } catch {
-    return "";
-  }
-}
-
-async function safeReadJson(res) {
-  try {
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-export async function loadSharedState() {
-  const res = await fetch(`${API_BASE}/state`, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
-
-  if (!res.ok) {
-    const txt = await safeReadText(res);
-    throw new Error(`loadSharedState failed: ${res.status} ${txt}`);
-  }
-
-  const json = await safeReadJson(res);
-  if (!json || typeof json !== "object") {
-    throw new Error("loadSharedState failed: invalid JSON");
-  }
-
-  return json;
-}
-
-export async function saveSharedState(state) {
-  console.log("Saving state to backend:", `${API_BASE}/state`, state);
-  const res = await fetch(`${API_BASE}/state`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(state),
-  });
-
-  if (!res.ok) {
-    const txt = await safeReadText(res);
-    throw new Error(`saveSharedState failed: ${res.status} ${txt}`);
-  }
-  return true;
-}
-
-export function connectSharedState(onState) {
-  const ws = new WebSocket(WS_BASE);
-
-  const handler = (ev) => {
-    try {
-      const parsed = JSON.parse(ev.data);
-      if (parsed?.type === "state") {
-        onState(parsed.payload);
-      }
-    } catch {
-      // ignore broken event
-    }
-  };
-
-  ws.addEventListener("message", handler);
-
-  return () => {
-    try {
-      ws.removeEventListener("message", handler);
-      ws.close();
-    } catch {
-      // ignore
-    }
-  };
-}
 
 export function safeRandomId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
@@ -174,44 +87,6 @@ export function stopTimerFields(task, nowMs) {
   };
 }
 
-export function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-
-    const bedtime = typeof parsed.bedtime === "string" ? parsed.bedtime : "22:30";
-    const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
-
-    const normalizedTasks = tasks
-      .filter((t) => t && typeof t === "object")
-      .map((t) => ({
-        id: typeof t.id === "string" ? t.id : safeRandomId(),
-        title: typeof t.title === "string" ? t.title : "",
-        plannedMin: clampInt(t.plannedMin, { min: 1, max: 10_000 }),
-        actualMin:
-          t.actualMin === null || t.actualMin === undefined
-            ? null
-            : clampInt(t.actualMin, { min: 0, max: 10_000 }),
-        done: Boolean(t.done),
-        createdAt: typeof t.createdAt === "string" ? t.createdAt : new Date().toISOString(),
-        updatedAt: typeof t.updatedAt === "string" ? t.updatedAt : new Date().toISOString(),
-
-        timerRunning: Boolean(t.timerRunning),
-        timerStartedAtMs: typeof t.timerStartedAtMs === "number" ? t.timerStartedAtMs : null,
-        timerAccumulatedMs: typeof t.timerAccumulatedMs === "number" ? t.timerAccumulatedMs : 0,
-      }))
-      .filter((t) => t.title.trim().length > 0);
-
-    const updatedAt =
-      typeof parsed.updatedAt === "number" && Number.isFinite(parsed.updatedAt) ? parsed.updatedAt : Date.now();
-
-    return { bedtime, tasks: normalizedTasks, updatedAt };
-  } catch {
-    return null;
-  }
-}
 
 export function normalizeSharedState(incoming) {
   const base = incoming && typeof incoming === "object" ? incoming : {};
@@ -244,9 +119,3 @@ export function normalizeSharedState(incoming) {
 
   return { bedtime, tasks, updatedAt };
 }
-
-export function saveState({ bedtime, tasks, updatedAt }) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ bedtime, tasks, updatedAt }));
-}
-
-export { STORAGE_KEY };

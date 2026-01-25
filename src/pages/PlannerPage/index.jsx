@@ -31,16 +31,15 @@ import FeatureCard from "../../shared/ui/FeatureCard";
 import ShowcaseCard from "../../shared/ui/ShowcaseCard";
 import PricingCard from "../../shared/ui/PricingCard";
 import { DEFAULT_STATE, taskReducer } from "../../entities/task/model/reducer";
+import { formatDurationMs, normalizeSharedState } from "../../entities/task/model/logic";
 import {
   connectSharedState,
-  formatDurationMs,
   loadSharedState,
   loadState,
-  normalizeSharedState,
   saveSharedState,
   saveState,
   STORAGE_KEY,
-} from "../../entities/task/model/logic";
+} from "../../shared/api/sharedStateApi";
 import {
   getBedtimeDateMs,
   getBedtimeMinutes,
