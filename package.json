@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "node sync-server.js",
-    "sync": "node sync-server.js"
+    "sync": "node sync-server.js",
+    "test": "node --test"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
