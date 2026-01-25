@@ -1,5 +1,5 @@
-import { stopTimerFields } from "./logic";
-import { domainToViewModel } from "./mappers";
+import { stopTimerFields } from "./logic.js";
+import { domainToViewModel } from "./mappers/index.js";
 
 /**
  * @typedef {import("./types").PlannerState} PlannerState

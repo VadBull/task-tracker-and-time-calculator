@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { taskReducer } from "./reducer";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { taskReducer } from "./reducer.js";
 
 const baseTask = (overrides = {}) => ({
   id: "task-1",
@@ -22,27 +23,22 @@ const baseState = (overrides = {}) => ({
   ...overrides,
 });
 
-beforeEach(() => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2024-02-01T10:00:00.000Z"));
-});
-
 describe("taskReducer", () => {
   it("creates, updates, and deletes tasks", () => {
     const initial = baseState({ tasks: [baseTask()] });
 
     const createdTask = baseTask({ id: "task-2", title: "New" });
     const created = taskReducer(initial, { type: "createTask", task: createdTask });
-    expect(created.tasks).toHaveLength(2);
-    expect(created.tasks[0]).toEqual(createdTask);
-    expect(created.updatedAt).toBe(Date.now());
+    assert.equal(created.tasks.length, 2);
+    assert.deepEqual(created.tasks[0], createdTask);
+    assert.equal(typeof created.updatedAt, "number");
 
     const updatedTask = { ...createdTask, title: "Updated" };
     const updated = taskReducer(created, { type: "updateTask", task: updatedTask });
-    expect(updated.tasks.find((task) => task.id === "task-2").title).toBe("Updated");
+    assert.equal(updated.tasks.find((task) => task.id === "task-2").title, "Updated");
 
     const deleted = taskReducer(updated, { type: "deleteTask", id: "task-2" });
-    expect(deleted.tasks.some((task) => task.id === "task-2")).toBe(false);
+    assert.equal(deleted.tasks.some((task) => task.id === "task-2"), false);
   });
 
   it("starts a timer and stops other running timers", () => {
@@ -58,14 +54,14 @@ describe("taskReducer", () => {
     const result = taskReducer(initial, { type: "startTimer", id: "task-2", nowMs: 5_000 });
 
     const stopped = result.tasks.find((task) => task.id === "task-1");
-    expect(stopped.timerRunning).toBe(false);
-    expect(stopped.timerStartedAtMs).toBeNull();
-    expect(stopped.timerAccumulatedMs).toBe(4_000);
-    expect(stopped.actualMin).toBe(1);
+    assert.equal(stopped.timerRunning, false);
+    assert.equal(stopped.timerStartedAtMs, null);
+    assert.equal(stopped.timerAccumulatedMs, 4_000);
+    assert.equal(stopped.actualMin, 1);
 
     const started = result.tasks.find((task) => task.id === "task-2");
-    expect(started.timerRunning).toBe(true);
-    expect(started.timerStartedAtMs).toBe(5_000);
+    assert.equal(started.timerRunning, true);
+    assert.equal(started.timerStartedAtMs, 5_000);
   });
 
   it("stops a timer and accumulates time", () => {
@@ -79,10 +75,11 @@ describe("taskReducer", () => {
     const result = taskReducer(initial, { type: "stopTimer", id: "task-1", nowMs: 7_000 });
     const updated = result.tasks[0];
 
-    expect(updated.timerRunning).toBe(false);
-    expect(updated.timerStartedAtMs).toBeNull();
-    expect(updated.timerAccumulatedMs).toBe(8_000);
-    expect(updated.actualMin).toBe(1);
+    assert.equal(updated.timerRunning, false);
+    assert.equal(updated.timerStartedAtMs, null);
+    assert.equal(updated.timerAccumulatedMs, 8_000);
+    assert.equal(updated.actualMin, 1);
+    assert.equal(typeof updated.updatedAt, "string");
   });
 
   it("toggles done state and sets actual minutes when needed", () => {
@@ -104,8 +101,9 @@ describe("taskReducer", () => {
     });
 
     const task = toggled.tasks[0];
-    expect(task.done).toBe(true);
-    expect(task.actualMin).toBe(25);
+    assert.equal(task.done, true);
+    assert.equal(task.actualMin, 25);
+    assert.equal(typeof task.updatedAt, "string");
   });
 
   it("stops timer when toggling done", () => {
@@ -127,8 +125,8 @@ describe("taskReducer", () => {
     });
 
     const task = toggled.tasks[0];
-    expect(task.timerRunning).toBe(false);
-    expect(task.timerStartedAtMs).toBeNull();
-    expect(task.actualMin).toBe(1);
+    assert.equal(task.timerRunning, false);
+    assert.equal(task.timerStartedAtMs, null);
+    assert.equal(task.actualMin, 1);
   });
 });

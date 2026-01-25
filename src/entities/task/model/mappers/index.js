@@ -1,4 +1,4 @@
-import { clampInt, safeRandomId } from "../logic";
+import { clampInt, safeRandomId } from "../logic.js";
 
 /**
  * @typedef {import("../types").PlannerState} PlannerState

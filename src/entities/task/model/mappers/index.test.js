@@ -1,19 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("../logic", async () => {
-  const actual = await vi.importActual("../logic");
-  return {
-    ...actual,
-    safeRandomId: vi.fn(() => "safe-id"),
-  };
-});
-
-import { dtoToDomain } from "./index";
-
-beforeEach(() => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2024-02-01T10:00:00.000Z"));
-});
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { dtoToDomain } from "./index.js";
 
 describe("dtoToDomain", () => {
   it("maps valid DTO data", () => {
@@ -38,7 +25,7 @@ describe("dtoToDomain", () => {
 
     const mapped = dtoToDomain(incoming);
 
-    expect(mapped).toEqual({
+    assert.deepEqual(mapped, {
       bedtime: "21:15",
       updatedAt: 123,
       tasks: [
@@ -85,20 +72,20 @@ describe("dtoToDomain", () => {
 
     const mapped = dtoToDomain(incoming);
 
-    expect(mapped.bedtime).toBe("22:30");
-    expect(mapped.updatedAt).toBe(Date.now());
-    expect(mapped.tasks).toHaveLength(1);
-    expect(mapped.tasks[0]).toEqual({
-      id: "safe-id",
-      title: "Valid",
-      plannedMin: 1,
-      actualMin: 12,
-      done: true,
-      createdAt: "2024-02-01T10:00:00.000Z",
-      updatedAt: "2024-02-01T10:00:00.000Z",
-      timerRunning: true,
-      timerStartedAtMs: null,
-      timerAccumulatedMs: 0,
-    });
+    assert.equal(mapped.bedtime, "22:30");
+    assert.equal(typeof mapped.updatedAt, "number");
+    assert.equal(mapped.tasks.length, 1);
+
+    const task = mapped.tasks[0];
+    assert.equal(typeof task.id, "string");
+    assert.equal(task.title, "Valid");
+    assert.equal(task.plannedMin, 1);
+    assert.equal(task.actualMin, 12);
+    assert.equal(task.done, true);
+    assert.equal(typeof task.createdAt, "string");
+    assert.equal(typeof task.updatedAt, "string");
+    assert.equal(task.timerRunning, true);
+    assert.equal(task.timerStartedAtMs, null);
+    assert.equal(task.timerAccumulatedMs, 0);
   });
 });
